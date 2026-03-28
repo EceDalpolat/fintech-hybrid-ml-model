@@ -1,0 +1,50 @@
+
+data:
+  ind_path: "data/raw/dcpc_2024_indlevel_public.csv"
+  tran_path: "data/raw/dcpc_2024_tranlevel_public.csv"
+  processed_path: "data/processed/merged_dataset.csv"
+  target: "pi"
+  test_size: 0.2
+  random_state: 42
+
+model:
+  type: "random_forest"
+  params:
+    n_estimators: 100
+    max_depth: 20
+    min_samples_split: 5
+    random_state: 42
+    class_weight: "balanced"
+
+optimization:
+  enabled: true
+  method: "pso"  # Options: grid, abc, pso
+  cv: 3
+  n_jobs: -1
+  verbose: 2
+  
+  # Parameters for Nature-Inspired Algorithms (PSO/ABC) via niapy
+  # Following IJISRT25JUN1821 ranges
+  niapy_params:
+    population_size: 50
+    max_iters: 20
+    bounds:
+      n_estimators: [100, 500]    # Increased for better accuracy
+      max_depth: [1, 100]        
+      min_samples_split: [2, 10] 
+      min_samples_leaf: [1, 5]   
+
+  # Classic Grid Search (backup)
+  param_grid:
+    classifier__n_estimators: [50, 100, 200]
+    classifier__max_depth: [10, 20, null]
+
+training:
+  epochs: 50
+
+feature_engineering:
+  drop_cols: ['id', 'time', 'tran', 'tran_report', 'paylocaltime', 'cashdeptime', 'cashgettime', 'cashgetsource', 'cashgetlocation']
+  missing_threshold: 0.95
+  
+logging:
+  config_path: "logging.yaml"
