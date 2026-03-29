@@ -25,6 +25,13 @@ def main():
     
     if df is not None:
         logger.info("Data is ready for processing.")
+        
+        # Save processed data for inspection
+        processed_path = "data/processed/final_processed_data.csv"
+        os.makedirs(os.path.dirname(processed_path), exist_ok=True)
+        df.to_csv(processed_path, index=False)
+        logger.info(f"Processed data saved to {processed_path}")
+        
         train_pipeline(df, config)
     else:
         logger.warning("No data found or data loading failed.")

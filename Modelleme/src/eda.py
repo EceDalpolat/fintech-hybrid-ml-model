@@ -70,8 +70,35 @@ def generate_eda_report():
         else:
             f.write(f"Target column '{target}' not found.\n")
             
-        # 4. Numerical Summary
-        f.write("\n## 4. Numerical Summary\n")
+        # 4. Numerical & Feature Analysis
+        f.write("\n## 4. Feature Analysis (New Engineering)\n")
+        
+        # Log Amnt Distribution
+        if 'log_amnt' in df.columns:
+            plt.figure(figsize=(10, 6))
+            sns.histplot(df['log_amnt'], kde=True)
+            plt.title("Distribution of Log Transformed Amount")
+            plt.savefig("reports/log_amnt_dist.png")
+            f.write("### Log Transformed Amount\n")
+            f.write("![Log Amnt](log_amnt_dist.png)\n\n")
+
+        # Age Group Distribution
+        if 'age_group' in df.columns:
+            plt.figure(figsize=(10, 6))
+            sns.countplot(x='age_group', data=df)
+            plt.title("Distribution of Age Groups")
+            plt.xticks(rotation=45)
+            plt.savefig("reports/age_group_dist.png")
+            f.write("### Age Groups\n")
+            f.write("![Age Group](age_group_dist.png)\n\n")
+
+        # Temporal Analysis
+        if 'is_payday' in df.columns:
+            payday_counts = df['is_payday'].value_counts(normalize=True) * 100
+            f.write(f"### Payday Transactions: {payday_counts.get(1, 0):.2f}%\n\n")
+
+        # 5. Numerical Summary
+        f.write("\n## 5. Numerical Summary\n")
         desc = df.describe()
         f.write(desc.to_markdown())
         

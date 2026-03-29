@@ -20,7 +20,7 @@ optimization:
   enabled: true
   method: "pso"  # Options: grid, abc, pso
   cv: 3
-  n_jobs: -1
+  n_jobs: 1
   verbose: 2
   
   # Parameters for Nature-Inspired Algorithms (PSO/ABC) via niapy

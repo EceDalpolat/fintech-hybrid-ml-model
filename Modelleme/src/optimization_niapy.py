@@ -3,13 +3,14 @@ import logging
 from niapy.problems import Problem
 from niapy.task import Task
 from niapy.algorithms.basic import ParticleSwarmOptimization, ArtificialBeeColonyAlgorithm
+from src.algorithms.hybrid_abc_pso import ABCPSO
 from sklearn.model_selection import cross_val_score
 from sklearn.base import clone
 
 logger = logging.getLogger(__name__)
 
 class HyperparameterOptimizationProblem(Problem):
-    def __init__(self, model, X, y, param_bounds, cv=3, n_jobs=-1):
+    def __init__(self, model, X, y, param_bounds, cv=3, n_jobs=-1, scoring='f1_weighted', population_size=20):
         """
         Problem definition for Niapy.
         """
@@ -20,6 +21,8 @@ class HyperparameterOptimizationProblem(Problem):
         self.param_names = list(param_bounds.keys())
         self.cv = cv
         self.n_jobs = n_jobs
+        self.scoring = scoring
+        self.population_size = population_size
         
         dimension = len(self.param_names)
         lower = [b[0] for b in param_bounds.values()]
@@ -27,42 +30,50 @@ class HyperparameterOptimizationProblem(Problem):
         
         super().__init__(dimension=dimension, lower=lower, upper=upper)
         self.call_count = 0
-        self.best_f1_so_far = -1.0
+        self.best_score_so_far = -1.0
+
+    @staticmethod
+    def _map_params(x, param_names):
+        """
+        Convert continuous NiaPy values to correct types and ranges.
+        """
+        params = {}
+        for i, name in enumerate(param_names):
+            val = x[i]
+            # RF and other integer parameters
+            if any(k in name for k in ['n_estimators', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'num_leaves']):
+                val = int(round(val))
+                # Constraints
+                if 'min_samples_split' in name: val = max(2, val)
+                elif 'min_samples_leaf' in name: val = max(1, val)
+                elif 'n_estimators' in name: val = max(10, val) # Realistic minimum
+                elif 'max_depth' in name and val < 1: val = None # Support None for max_depth
+            
+            params[name] = val
+        return params
 
     def _evaluate(self, x):
         """
         Fitness function: Evaluate model performance.
         """
-        params = {}
-        for i, param_name in enumerate(self.param_names):
-            val = x[i]
-            # Integer conversion logic
-            if any(key in param_name for key in ['n_estimators', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'num_leaves']):
-                val = int(round(val))
-                if 'min_samples_split' in param_name and val < 2: val = 2
-                if 'min_samples_leaf' in param_name and val < 1: val = 1
-                if 'n_estimators' in param_name and val < 1: val = 1
-                if 'max_depth' in param_name and val < 1: val = 1
-            
-            params[param_name] = val
-            
+        params = self._map_params(x, self.param_names)
         model = clone(self.model)
         model.set_params(**params)
         
         try:
-            scores = cross_val_score(model, self.X, self.y, cv=self.cv, n_jobs=self.n_jobs, scoring='f1_weighted')
-            fitness = 1 - scores.mean()
+            scores = cross_val_score(model, self.X, self.y, cv=self.cv, n_jobs=self.n_jobs, scoring=self.scoring)
+            mean_score = scores.mean()
+            fitness = 1 - mean_score
             self.call_count += 1
             
-            logger.debug(f"Parameters: {params} -> F1 weighted: {scores.mean():.4f}")
+            logger.debug(f"Parameters: {params} -> {self.scoring}: {mean_score:.4f}")
             
-            if scores.mean() > self.best_f1_so_far:
-                self.best_f1_so_far = scores.mean()
+            if mean_score > self.best_score_so_far:
+                self.best_score_so_far = mean_score
             
-            # Assuming population_size is roughly where an "iteration" ends
-            # We can log every 50 evaluations (our pop_size)
-            if self.call_count % 50 == 0:
-                logger.info(f"Evaluation progress: {self.call_count} calls done. Best F1 weighted so far: {self.best_f1_so_far:.4f}")
+            # Dynamic logging based on population size (every iteration)
+            if self.call_count % self.population_size == 0:
+                logger.info(f"Iteration {self.call_count // self.population_size}: Best {self.scoring} so far: {self.best_score_so_far:.4f}")
                 
             return fitness
         except Exception as e:
@@ -87,7 +98,9 @@ class NiapyOptimizer:
         problem = HyperparameterOptimizationProblem(
             self.model, X, y, self.bounds, 
             cv=self.opt_config.get('cv', 3),
-            n_jobs=self.opt_config.get('n_jobs', -1)
+            n_jobs=self.opt_config.get('n_jobs', -1),
+            scoring=self.opt_config.get('scoring', 'f1_weighted'),
+            population_size=self.niapy_params.get('population_size', 20)
         )
         
         max_iters = self.niapy_params.get('max_iters', 100)
@@ -99,26 +112,24 @@ class NiapyOptimizer:
             algo = ParticleSwarmOptimization(population_size=pop_size)
         elif algorithm == 'abc':
             algo = ArtificialBeeColonyAlgorithm(population_size=pop_size)
+        elif algorithm == 'abc-pso':
+            algo = ABCPSO(population_size=pop_size, 
+                          w=self.niapy_params.get('w', 0.729),
+                          c1=self.niapy_params.get('c1', 1.494),
+                          c2=self.niapy_params.get('c2', 1.494),
+                          limit=self.niapy_params.get('limit', 100))
         else:
             raise ValueError(f"Unknown algorithm: {algorithm}")
             
         logger.info(f"Running optimization for {max_iters} iterations with population {pop_size}...")
         best_x, best_fitness = algo.run(task)
         
-        best_params = {}
-        param_names = list(self.bounds.keys())
-        for i, param_name in enumerate(param_names):
-            val = best_x[i]
-            if any(key in param_name for key in ['n_estimators', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'num_leaves']):
-                val = int(round(val))
-                if 'min_samples_split' in param_name and val < 2: val = 2
-                if 'min_samples_leaf' in param_name and val < 1: val = 1
-                if 'n_estimators' in param_name and val < 1: val = 1
-                if 'max_depth' in param_name and val < 1: val = 1
-            best_params[param_name] = val
+        # Extract best parameters using centralized mapping
+        best_params = problem._map_params(best_x, list(self.bounds.keys()))
             
         logger.info("Optimization complete.")
-        logger.info(f"Best Fitness (F1 Error): {best_fitness:.4f}")
+        logger.info(f"Best Fitness (Error): {best_fitness:.4f}")
+        logger.info(f"Best {problem.scoring}: {1 - best_fitness:.4f}")
         logger.info(f"Best Params: {best_params}")
         
         best_model = clone(self.model)
