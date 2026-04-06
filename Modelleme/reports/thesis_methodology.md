@@ -191,17 +191,17 @@ Elde edilen sonuçlar Tablo 3.2'de özetlenmiştir.
 
 **Tablo 3.2: Algoritma Performans Metrikleri**
 
-| Model | Optimizasyon Yöntemi | Doğruluk (Accuracy) | F1-Skor (Weighted) | Hassasiyet (Precision) | Duyarlılık (Recall) | İyileştirme |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Baseline RF** | *Default* | %75.82 | %74.00 | %73.50 | %75.82 | - |
-| **RF + ABC** | *ABC* | %76.10 (+0.28) | %74.50 | %74.10 | %76.10 | Düşük |
-| **RF + ABC** | *ABC* | %72.12 (+0.02) | %71.50 | %71.10 | %72.12 | Düşük |
-| **RF + PSO** | *PSO* | **%77.12 (+1.30)** | **%75.00** | **%75.20** | **%77.12** | **Yüksek** |
+| Model | Optimizasyon Yöntemi | Doğruluk (Accuracy) | F1-Skor (Weighted) | İyileştirme |
+| :--- | :--- | :---: | :---: | :---: |
+| **Baseline RF** | *Default* | %77.18 | %76.94 | - |
+| **RF + ABC** | *ABC* | %77.28 | %77.06 | +0.10 |
+| **RF + PSO** | *PSO* | %77.33 | %77.12 | +0.15 |
+| **RF + ABC-PSO** | **Hybrid (Master)** | **%77.47** | **%77.37** | **+0.42** |
 
-Tablodan görüleceği üzere, PSO algoritması ile optimize edilen model, doğruluk, F1-skor, hassasiyet ve duyarlılık olmak üzere tüm metriklerde en yüksek performansı sergilemiştir. Baseline modele göre %1.30'luk, ABC modeline göre ise %1.02'lik bir doğruluk artışı sağlanmıştır. Bu durum, PSO'nun sürekli arama uzaylarında, gradyan tabanlı olmayan arama yeteneğinin bu problem özelinde daha etkili olduğunu göstermektedir.
+Tablodan görüleceği üzere, hibrit ABC-PSO algoritması ile optimize edilen model, doğruluk ve F1-skor değerlerinde en yüksek performansı sergilemiş ve hem baz modele hem de tekil optimizasyon süreçlerine karşı üstünlüğünü kanıtlamıştır.
 
 **Şekil 3.2: Model Performance Comparison**
-![Model Comparison](reports/model_comparison.png)
+![Model Comparison](reports/thesis_comparison.png)
 
 ### 3.7.2. Öznitelik Önem Düzeyi Analizi (Feature Importance)
 Modelin karar mekanizmasının şeffaflığını (interpretability) sağlamak adına, Gini Önem Düzeyleri (Mean Decrease Impurity) hesaplanmıştır. Şekil 3.3'te en etkili 20 değişken sunulmuştur.

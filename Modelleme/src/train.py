@@ -1,10 +1,15 @@
 import logging
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import accuracy_score, classification_report
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, LabelEncoder
+from sklearn.impute import KNNImputer, SimpleImputer
+from sklearn.preprocessing import OneHotEncoder, RobustScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
+from sklearn.base import BaseEstimator, TransformerMixin
+from imblearn.pipeline import Pipeline
+from imblearn.over_sampling import SMOTE
+from sklearn.feature_selection import SelectFromModel
+from sklearn.ensemble import RandomForestClassifier
+from category_encoders import TargetEncoder
 from src.model import get_model
 from src.utils import setup_logging
 import pandas as pd
@@ -14,6 +19,34 @@ import os
 import copy
 
 logger = logging.getLogger(__name__)
+
+class RareEncoder(BaseEstimator, TransformerMixin):
+    """
+    Groups infrequent categories into an 'Other' category.
+    """
+    def __init__(self, tol=0.05, replace_with='Rare'):
+        self.tol = tol
+        self.replace_with = replace_with
+        self.rare_labels_ = {}
+
+    def fit(self, X, y=None):
+        X = pd.DataFrame(X)
+        for col in X.columns:
+            # Calculate frequency
+            t = X[col].value_counts(normalize=True)
+            # Keep labels that are above tolerance
+            if not t[t < self.tol].empty:
+                self.rare_labels_[col] = [label for label in t[t < self.tol].index]
+            else:
+                self.rare_labels_[col] = []
+        return self
+
+    def transform(self, X):
+        X = pd.DataFrame(X).copy()
+        for col in X.columns:
+            if col in self.rare_labels_ and self.rare_labels_[col]:
+                X[col] = X[col].replace(self.rare_labels_[col], self.replace_with)
+        return X
 
 def train_model(model, X_train, y_train):
     """
@@ -44,7 +77,7 @@ def evaluate_model(model, X_test, y_test, label_encoder=None):
 
 def build_preprocessor(X):
     """
-    Create a preprocessing pipeline based on input data.
+    Create a premium preprocessing pipeline based on input data.
     """
     # Identify numerical and categorical columns
     numeric_features = X.select_dtypes(include=['int64', 'float64']).columns
@@ -53,14 +86,18 @@ def build_preprocessor(X):
     logger.info(f"Numerical features: {len(numeric_features)}")
     logger.info(f"Categorical features: {len(categorical_features)}")
     
+    # 1. Advanced Numerical Pipeline: Simple Imputation + Robust Scaling
     numeric_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='median')),
-        ('scaler', StandardScaler())
+        ('scaler', RobustScaler())
     ])
     
+    # 2. Advanced Categorical Pipeline: Target Encoding for high-cardinality + Rare Encoding
+    # Note: TargetEncoder is efficient for many-class features like Merchant
     categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='most_frequent')),
-        ('encoder', OneHotEncoder(handle_unknown='ignore'))
+        ('imputer', SimpleImputer(strategy='most_frequent', fill_value='missing')),
+        ('rare_encoder', RareEncoder(tol=0.02)),
+        ('target_encoder', TargetEncoder())
     ])
     
     preprocessor = ColumnTransformer(
@@ -70,6 +107,17 @@ def build_preprocessor(X):
         ])
         
     return preprocessor
+
+def create_pipeline(preprocessor, model):
+    """
+    Create the standardized high-performance pipeline for the accuracy push.
+    """
+    return Pipeline(steps=[
+        ('preprocessor', preprocessor),
+        ('smote', SMOTE(random_state=42)),
+        ('feature_selection', SelectFromModel(RandomForestClassifier(n_estimators=50, random_state=42), threshold='median')),
+        ('classifier', model)
+    ])
 
 def train_pipeline(df, config):
     """
@@ -127,21 +175,22 @@ def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
     logger.info(f"--- Starting Optimization using method: {method} ---")
     
     base_model = get_model(config.get('model', {}))
-    pipeline_base = Pipeline(steps=[('preprocessor', preprocessor),
-                                    ('classifier', base_model)])
+    
+    # ACCURACY PUSH: Using centralized pipeline builder
+    pipeline_base = create_pipeline(preprocessor, base_model)
 
-    if method in ['pso', 'abc']:
+    if method in ['pso', 'abc', 'abc-pso']:
             from src.optimization_niapy import NiapyOptimizer
-            
-            # Deep copy config to prefix bounds
+
             config_opt = copy.deepcopy(config)
             if 'niapy_params' in config_opt['optimization'] and 'bounds' in config_opt['optimization']['niapy_params']:
                 bounds = config_opt['optimization']['niapy_params']['bounds']
                 new_bounds = {f'classifier__{k}': v for k, v in bounds.items()}
                 config_opt['optimization']['niapy_params']['bounds'] = new_bounds
-            
+
             optimizer = NiapyOptimizer(pipeline_base, config_opt)
-            best_model, best_params = optimizer.optimize(X_train, y_train, algorithm=method)
+            # optimize now returns (model, params, iter_history)
+            best_model, best_params, _ = optimizer.optimize(X_train, y_train, algorithm=method)
             
     else:
         # Default Grid Search
@@ -168,8 +217,9 @@ def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
 def run_single_training(X_train, y_train, X_test, y_test, preprocessor, config, le):
     logger.info("--- Training Single Model ---")
     model = get_model(config.get('model', {}))
-    pipeline = Pipeline(steps=[('preprocessor', preprocessor),
-                                ('classifier', model)])
+    
+    # ACCURACY PUSH: Using centralized pipeline builder
+    pipeline = create_pipeline(preprocessor, model)
     
     train_model(pipeline, X_train, y_train)
     evaluate_model(pipeline, X_test, y_test, label_encoder=le)

@@ -10,3 +10,5 @@ niapy
 lightgbm
 joblib
 openpyxl
+imbalanced-learn
+category_encoders

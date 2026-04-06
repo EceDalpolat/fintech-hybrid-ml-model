@@ -14,23 +14,28 @@ Tüketicilerin ödeme aracı tercihlerini temsil eden `pi` (Payment Instrument) 
 
 Bu dağılım, dijital ödeme yöntemlerinin (banka ve kredi kartı) toplamda %60'ın üzerinde bir paya sahip olduğunu, nakit kullanımının ise üçüncü sırada kaldığını kanıtlamaktadır.
 
-## 2. ABC Optimizasyon Süreci ve Yakınsama Analizi
+## 2. Optimizasyon Süreci ve hibrit Yakınsama Analizi
 
-Çalışmanın en özgün kısmını oluşturan hibrit modelleme aşamasında, Yapay Arı Kolonisi (ABC) algoritması hiper-parametre alanını 100 iterasyon boyunca taramıştır.
+Çalışmanın en özgün kısmını oluşturan hibrit modelleme aşamasında; **Baseline**, **PSO**, **ABC** ve hibrit **ABC-PSO** algoritmalarının hiper-parametre alanlarını tarama performansları karşılaştırılmıştır.
 
-### 2.1. Optimizasyon Performansı
-ABC algoritması, 50 arıdan oluşan bir popülasyonla başlatılmış ve toplamda **5.050 fonksiyon çağrısı** gerçekleştirmiştir. Optimizasyon sürecine dair önemli dönüm noktaları şöyledir:
-*   **Başlangıç Doğruluğu**: İlk rastgele atamalarda %71,93 civarında seyreden doğruluk oranı, işçi ve gözcü arıların yerel arama stratejileri ile kademeli olarak artmıştır.
-*   **Yakınsama**: 1.300. çağrı civarında %72,11 seviyesine ulaşan model, 2.550. çağrıdan sonra en iyi değer olan **%72,12** doğruluğa (0.2788 hata oranı) sabitlenmiştir.
+### 2.1. Optimizasyon Performansı ve Karşılaştırma
+Tüm algoritmalar 100 iterasyon boyunca koşturulmuş ve en iyi performans **ABC-PSO** hibrit yaklaşımı ile elde edilmiştir.
+
+| Model / Metot | Doğruluk (Accuracy) | F1-Skoru (Weighted) | İyileştirme (vs Baseline) |
+| :--- | :---: | :---: | :---: |
+| **RF (Baseline)** | %77,18 | %76,94 | - |
+| **RF-ABC (Hibrit)** | %77,28 | %77,06 | +0,10 |
+| **RF-PSO (Hibrit)** | %77,33 | %77,12 | +0,15 |
+| **RF-ABC-PSO (Master)** | **%77,47** | **%77,37** | **+0,29** |
 
 ### 2.2. Belirlenen Optimal Hiper-parametreler
-ABC algoritması tarafından tespit edilen ve modelin en yüksek başarımı sergilemesini sağlayan optimal parametre seti Tablo 1'de sunulmuştur:
+Sistemdeki en yüksek başarıyı veren **RF-ABC-PSO (Master)** modeli için tespit edilen optimal parametre seti Tablo 1'de sunulmuştur:
 
-| Parametre | Optimal Değer |
+| Parametre | Optimal Değer (ABC-PSO) |
 |---|---|
-| n_estimators (Ağaç Sayısı) | 284 |
-| max_depth (Maksimum Derinlik) | 36 |
-| min_samples_split | 6 |
+| n_estimators (Ağaç Sayısı) | 381 |
+| max_depth (Maksimum Derinlik) | 62 |
+| min_samples_split | 8 |
 | min_samples_leaf | 1 |
 
 ## 3. Sınıflandırma Başarısı ve Metrikler

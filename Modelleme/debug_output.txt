@@ -1,0 +1,75 @@
+ERROR:src.data_loader:Error loading/processing data: 'id'
+Traceback (most recent call last):
+  File "/Users/ecedalpolat/TEZ/Modelleme/src/data_loader.py", line 68, in load_and_merge_data
+    merged_df = aggregate_user_behavior(merged_df)
+  File "/Users/ecedalpolat/TEZ/Modelleme/src/data_loader.py", line 85, in aggregate_user_behavior
+    trans_counts = df.groupby('id').size().reset_index(name='user_trans_count')
+  File "/Users/ecedalpolat/TEZ/Modelleme/.venv/lib/python3.9/site-packages/pandas/core/frame.py", line 9210, in groupby
+    return DataFrameGroupBy(
+  File "/Users/ecedalpolat/TEZ/Modelleme/.venv/lib/python3.9/site-packages/pandas/core/groupby/groupby.py", line 1331, in __init__
+    grouper, exclusions, obj = get_grouper(
+  File "/Users/ecedalpolat/TEZ/Modelleme/.venv/lib/python3.9/site-packages/pandas/core/groupby/grouper.py", line 1043, in get_grouper
+    raise KeyError(gpr)
+KeyError: 'id'
+ERROR:src.run_thesis_experiments:Failed to load data.
+/Users/ecedalpolat/TEZ/Modelleme/src/visualize_results.py:84: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+  plt.legend()
+Running PSO on Sphere (Dim=10, MaxIters=200)...
+Finished PSO on Sphere. Mean: 1.29e+01
+Running ABC on Sphere (Dim=10, MaxIters=200)...
+Finished ABC on Sphere. Mean: 1.19e-07
+Running ABC-PSO on Sphere (Dim=10, MaxIters=200)...
+Finished ABC-PSO on Sphere. Mean: 1.39e-14
+Incremental results saved for Sphere.
+Running PSO on Rosenbrock (Dim=10, MaxIters=200)...
+Finished PSO on Rosenbrock. Mean: 3.25e+06
+Running ABC on Rosenbrock (Dim=10, MaxIters=200)...
+Finished ABC on Rosenbrock. Mean: 6.49e+00
+Running ABC-PSO on Rosenbrock (Dim=10, MaxIters=200)...
+Finished ABC-PSO on Rosenbrock. Mean: 2.20e+00
+Incremental results saved for Rosenbrock.
+Running PSO on Rastrigin (Dim=10, MaxIters=200)...
+Finished PSO on Rastrigin. Mean: 7.42e+01
+Running ABC on Rastrigin (Dim=10, MaxIters=200)...
+Finished ABC on Rastrigin. Mean: 5.11e-01
+Running ABC-PSO on Rastrigin (Dim=10, MaxIters=200)...
+Finished ABC-PSO on Rastrigin. Mean: 5.92e-04
+Incremental results saved for Rastrigin.
+Running PSO on Griewank (Dim=10, MaxIters=200)...
+Finished PSO on Griewank. Mean: 2.38e+00
+Running ABC on Griewank (Dim=10, MaxIters=200)...
+Finished ABC on Griewank. Mean: 3.43e-02
+Running ABC-PSO on Griewank (Dim=10, MaxIters=200)...
+Finished ABC-PSO on Griewank. Mean: 6.64e-02
+Incremental results saved for Griewank.
+Convergence plot saved to reports/benchmark_convergence.png
+
+Benchmark Results Summary:
+   Problem Algorithm Mean Fitness     Best
+    Sphere       PSO     1.29e+01 1.23e+01
+    Sphere       ABC     1.19e-07 8.39e-10
+    Sphere   ABC-PSO     1.39e-14 1.97e-15
+Rosenbrock       PSO     3.25e+06 1.16e+06
+Rosenbrock       ABC     6.49e+00 2.42e+00
+Rosenbrock   ABC-PSO     2.20e+00 1.27e+00
+ Rastrigin       PSO     7.42e+01 4.93e+01
+ Rastrigin       ABC     5.11e-01 4.97e-05
+ Rastrigin   ABC-PSO     5.92e-04 4.17e-07
+  Griewank       PSO     2.38e+00 2.15e+00
+  Griewank       ABC     3.43e-02 2.50e-02
+  Griewank   ABC-PSO     6.64e-02 4.67e-02
+Thesis comparison plot saved to reports/thesis_comparison.png
+Benchmark comparison plot saved to reports/benchmark_comparison.png
+Convergence plot saved to reports/convergence_Sphere.png
+Convergence plot saved to reports/convergence_Rosenbrock.png
+Convergence plot saved to reports/convergence_Rastrigin.png
+Convergence plot saved to reports/convergence_Griewank.png
+
+📈 QUICK PERFORMANCE SUMMARY:
+------------------------------
+  method  accuracy  f1_weighted
+baseline  0.771777     0.769410
+     pso  0.773345     0.771233
+     abc  0.772822     0.770632
+ abc-pso  0.774739     0.773731
+------------------------------

@@ -18,21 +18,29 @@ model:
 
 optimization:
   enabled: true
-  method: "pso"  # Options: grid, abc, pso
-  cv: 3
-  n_jobs: 1
+  method: "abc-pso"  # Options: grid, abc, pso, abc-pso
+  scoring: "f1_weighted"
+  cv: 5
+  n_jobs: -1
   verbose: 2
-  
-  # Parameters for Nature-Inspired Algorithms (PSO/ABC) via niapy
-  # Following IJISRT25JUN1821 ranges
+
+  # NiaPy meta-heuristic parameters
+  # Khuat & Le (2018): NE=50, MCN=1000; reduced here for practical runtime.
+  # Increase max_iters to 100-200 for final thesis run.
   niapy_params:
-    population_size: 50
-    max_iters: 20
+    population_size: 30
+    max_iters: 80            # 80 iters × 30 pop = 2400 evaluations
+    # ABC-PSO specific
+    w: 0.729
+    c1: 1.494
+    c2: 1.494
+    limit: 50
     bounds:
-      n_estimators: [100, 500]    # Increased for better accuracy
-      max_depth: [1, 100]        
-      min_samples_split: [2, 10] 
-      min_samples_leaf: [1, 5]   
+      n_estimators: [100, 800]
+      max_depth: [5, 100]
+      min_samples_split: [2, 20]
+      min_samples_leaf: [1, 10]
+      max_features: [0.1, 0.9]
 
   # Classic Grid Search (backup)
   param_grid:

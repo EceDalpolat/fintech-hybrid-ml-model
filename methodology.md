@@ -51,17 +51,18 @@ Bu bölümde, iki farklı sürü zekası algoritmasının hiperparametre arama p
 
 Yapılan deneyler sonucunda, PSO algoritmasının ABC algoritmasına göre hiperparametre uzayında daha başarılı bir yakınsama sergilediği gözlemlenmiştir.
 
-**Tablo 3.3: Model Performans Karşılaştırma Matrisi (Baseline vs. ABC vs. PSO)**
+**Tablo 3.3: Model Performans Karşılaştırma Matrisi (Baseline vs. ABC vs. PSO vs. ABC-PSO)**
 
-| Model / Metot | Doğruluk (Accuracy) | En İyi n_estimators | En İyi max_depth |
-| :--- | :---: | :---: | :---: |
-| **RF (Varsayılan)** | %65,32 | 100 | 20 |
-| **RF-ABC (Hibrit)** | %65,76 | 95 | 99 |
-| **RF-PSO (Hibrit)** | **%66,02** | 100 | 26 |
+| Model / Metot | Doğruluk (Accuracy) | F1-Skoru (Weighted) | En İyi n_estimators | En İyi max_depth |
+| :--- | :---: | :---: | :---: | :---: |
+| **RF (Baseline)** | %77,18 | %76,94 | 100 | 20 |
+| **RF-ABC (Hibrit)** | %77,28 | %77,06 | 284 | 36 |
+| **RF-PSO (Hibrit)** | %77,33 | %77,12 | 100 | 26 |
+| **RF-ABC-PSO (Master)** | **%77,47** | **%77,37** | **381** | **62** |
 
 ### 3.4.1. Yakınsama Analizi
-- **ABC**: 550 fonksiyon çağrısı sonunda %65,76 doğruluğa ulaşmış, ancak karmaşık öznitelik uzayında yerel optimumlarda takılma eğilimi göstermiştir.
-- **PSO (Gelişmiş Veriyle)**: Gelişmiş veri işleme (Preprocessing Overhaul) ve F1-skoru odaklı yeni yapıda, ilk 100 çağrıda **%74,11** başarıya ulaşarak model kapasitesini kanıtlamıştır.
+- **ABC**: 100 iterasyon sonunda %77,28 doğruluğa ulaşmış, ancak karmaşık öznitelik uzayında yerel optimumlarda takılma eğilimi göstermiştir.
+- **ABC-PSO (Master Hibrit)**: Gelişmiş veri işleme (Preprocessing Overhaul) ve F1-skoru odaklı yeni yapıda, her iki algoritmanın avantajlarını birleştirerek **%77,47** başarıya ulaşmış ve model kapasitesini kanıtlamıştır.
 
 ---
 

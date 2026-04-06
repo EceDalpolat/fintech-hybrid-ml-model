@@ -1,3 +1,8 @@
+"""
+Hyperparameter optimisation via NiaPy meta-heuristics.
+Supports PSO, ABC, and the hybrid ABC-PSO algorithm.
+Convergence history (best CV score per iteration) is tracked and returned.
+"""
 import numpy as np
 import logging
 from niapy.problems import Problem
@@ -9,11 +14,22 @@ from sklearn.base import clone
 
 logger = logging.getLogger(__name__)
 
+
 class HyperparameterOptimizationProblem(Problem):
-    def __init__(self, model, X, y, param_bounds, cv=3, n_jobs=-1, scoring='f1_weighted', population_size=20):
-        """
-        Problem definition for Niapy.
-        """
+    """
+    NiaPy Problem wrapper: maps a continuous vector to RF hyperparameters
+    and evaluates them via stratified cross-validation.
+
+    Convergence tracking
+    --------------------
+    - `self.iter_history`  : list of best CV score seen *at the end of each
+                              complete iteration* (one value per pop_size calls).
+    - `self.eval_history`  : best CV score seen at *every individual call*
+                              (useful for fine-grained analysis).
+    """
+
+    def __init__(self, model, X, y, param_bounds,
+                 cv=3, n_jobs=-1, scoring='f1_weighted', population_size=20):
         self.model = model
         self.X = X
         self.y = y
@@ -23,117 +39,158 @@ class HyperparameterOptimizationProblem(Problem):
         self.n_jobs = n_jobs
         self.scoring = scoring
         self.population_size = population_size
-        
+
         dimension = len(self.param_names)
         lower = [b[0] for b in param_bounds.values()]
         upper = [b[1] for b in param_bounds.values()]
-        
         super().__init__(dimension=dimension, lower=lower, upper=upper)
+
         self.call_count = 0
         self.best_score_so_far = -1.0
+        self.eval_history = []     # (call_index, best_score) at every eval
+        self.iter_history = []     # best_score at end of each iteration
 
+    # ------------------------------------------------------------------
     @staticmethod
     def _map_params(x, param_names):
-        """
-        Convert continuous NiaPy values to correct types and ranges.
-        """
+        """Convert continuous NiaPy vector to typed RF hyperparameters."""
         params = {}
         for i, name in enumerate(param_names):
             val = x[i]
-            # RF and other integer parameters
-            if any(k in name for k in ['n_estimators', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'num_leaves']):
+            if any(k in name for k in [
+                    'n_estimators', 'max_depth',
+                    'min_samples_split', 'min_samples_leaf', 'num_leaves']):
                 val = int(round(val))
-                # Constraints
-                if 'min_samples_split' in name: val = max(2, val)
-                elif 'min_samples_leaf' in name: val = max(1, val)
-                elif 'n_estimators' in name: val = max(10, val) # Realistic minimum
-                elif 'max_depth' in name and val < 1: val = None # Support None for max_depth
-            
+                if 'min_samples_split' in name:
+                    val = max(2, val)
+                elif 'min_samples_leaf' in name:
+                    val = max(1, val)
+                elif 'n_estimators' in name:
+                    val = max(10, val)
+                elif 'max_depth' in name and val < 1:
+                    val = None
             params[name] = val
         return params
 
+    # ------------------------------------------------------------------
     def _evaluate(self, x):
-        """
-        Fitness function: Evaluate model performance.
-        """
         params = self._map_params(x, self.param_names)
         model = clone(self.model)
         model.set_params(**params)
-        
-        try:
-            scores = cross_val_score(model, self.X, self.y, cv=self.cv, n_jobs=self.n_jobs, scoring=self.scoring)
-            mean_score = scores.mean()
-            fitness = 1 - mean_score
-            self.call_count += 1
-            
-            logger.debug(f"Parameters: {params} -> {self.scoring}: {mean_score:.4f}")
-            
-            if mean_score > self.best_score_so_far:
-                self.best_score_so_far = mean_score
-            
-            # Dynamic logging based on population size (every iteration)
-            if self.call_count % self.population_size == 0:
-                logger.info(f"Iteration {self.call_count // self.population_size}: Best {self.scoring} so far: {self.best_score_so_far:.4f}")
-                
-            return fitness
-        except Exception as e:
-            logger.error(f"Error evaluating parameters {params}: {e}")
-            return 1.0 # Max error
 
+        try:
+            scores = cross_val_score(
+                model, self.X, self.y,
+                cv=self.cv, n_jobs=self.n_jobs, scoring=self.scoring
+            )
+            mean_score = float(scores.mean())
+        except Exception as e:
+            logger.error(f"Error evaluating params {params}: {e}")
+            mean_score = 0.0
+
+        fitness = 1.0 - mean_score
+        self.call_count += 1
+
+        # Update running best
+        if mean_score > self.best_score_so_far:
+            self.best_score_so_far = mean_score
+
+        # Per-evaluation record
+        self.eval_history.append(self.best_score_so_far)
+
+        # Per-iteration record (logged once per full population sweep)
+        if self.call_count % self.population_size == 0:
+            iteration = self.call_count // self.population_size
+            self.iter_history.append(self.best_score_so_far)
+            logger.info(
+                f"Iter {iteration:3d} | best {self.scoring}: "
+                f"{self.best_score_so_far:.4f} | params: {params}"
+            )
+
+        logger.debug(f"Params: {params} -> {self.scoring}: {mean_score:.4f}")
+        return fitness
+
+
+# ---------------------------------------------------------------------------
 class NiapyOptimizer:
+    """Wraps a NiaPy algorithm to optimise a sklearn pipeline's hyperparameters."""
+
     def __init__(self, model, config):
         self.model = model
         self.config = config
-        self.opt_config = config.get('optimization', {})
+        self.opt_config   = config.get('optimization', {})
         self.niapy_params = self.opt_config.get('niapy_params', {})
-        self.bounds = self.niapy_params.get('bounds', {})
-        
+        self.bounds       = self.niapy_params.get('bounds', {})
+
         if not self.bounds:
-            logger.error("No parameter bounds defined for Niapy optimization.")
             raise ValueError("No parameter bounds defined for Niapy optimization.")
 
+    # ------------------------------------------------------------------
     def optimize(self, X, y, algorithm='pso'):
-        logger.info(f"Starting {algorithm.upper()} optimization...")
-        
+        """
+        Run meta-heuristic optimisation.
+
+        Returns
+        -------
+        best_model   : fitted sklearn pipeline with best parameters
+        best_params  : dict of best hyperparameter values
+        iter_history : list[float] – best CV score at end of each iteration
+        """
+        pop_size  = self.niapy_params.get('population_size', 20)
+        max_iters = self.niapy_params.get('max_iters', 100)
+
+        logger.info(
+            f"Starting {algorithm.upper()} | pop={pop_size} | iters={max_iters} "
+            f"| total evals≈{pop_size * max_iters}"
+        )
+
         problem = HyperparameterOptimizationProblem(
-            self.model, X, y, self.bounds, 
+            self.model, X, y, self.bounds,
             cv=self.opt_config.get('cv', 3),
             n_jobs=self.opt_config.get('n_jobs', -1),
             scoring=self.opt_config.get('scoring', 'f1_weighted'),
-            population_size=self.niapy_params.get('population_size', 20)
+            population_size=pop_size,
         )
-        
-        max_iters = self.niapy_params.get('max_iters', 100)
         task = Task(problem, max_iters=max_iters)
-        
-        pop_size = self.niapy_params.get('population_size', 20)
-        
+
         if algorithm == 'pso':
             algo = ParticleSwarmOptimization(population_size=pop_size)
         elif algorithm == 'abc':
             algo = ArtificialBeeColonyAlgorithm(population_size=pop_size)
         elif algorithm == 'abc-pso':
-            algo = ABCPSO(population_size=pop_size, 
-                          w=self.niapy_params.get('w', 0.729),
-                          c1=self.niapy_params.get('c1', 1.494),
-                          c2=self.niapy_params.get('c2', 1.494),
-                          limit=self.niapy_params.get('limit', 100))
+            algo = ABCPSO(
+                population_size=pop_size,
+                w=self.niapy_params.get('w', 0.729),
+                c1=self.niapy_params.get('c1', 1.494),
+                c2=self.niapy_params.get('c2', 1.494),
+                limit=self.niapy_params.get('limit', 100),
+            )
         else:
             raise ValueError(f"Unknown algorithm: {algorithm}")
-            
-        logger.info(f"Running optimization for {max_iters} iterations with population {pop_size}...")
-        best_x, best_fitness = algo.run(task)
-        
-        # Extract best parameters using centralized mapping
-        best_params = problem._map_params(best_x, list(self.bounds.keys()))
-            
-        logger.info("Optimization complete.")
-        logger.info(f"Best Fitness (Error): {best_fitness:.4f}")
-        logger.info(f"Best {problem.scoring}: {1 - best_fitness:.4f}")
-        logger.info(f"Best Params: {best_params}")
-        
+
+        run_result = algo.run(task)
+        if len(run_result) == 3:
+            best_x, best_fitness, _ = run_result
+        else:
+            best_x, best_fitness = run_result
+
+        # Map best vector → hyperparameter dict (strip prefix if present)
+        raw_params = problem._map_params(best_x, list(self.bounds.keys()))
+        # Remove pipeline prefix (e.g. 'classifier__') for clean logging
+        best_params = {k.replace('classifier__', ''): v for k, v in raw_params.items()}
+
+        best_cv = 1.0 - best_fitness
+        logger.info("=" * 50)
+        logger.info(f"Optimisation complete: {algorithm.upper()}")
+        logger.info(f"  Best fitness (error) : {best_fitness:.4f}")
+        logger.info(f"  Best {problem.scoring:15s}: {best_cv:.4f}")
+        logger.info(f"  Best params          : {raw_params}")
+        logger.info("=" * 50)
+
+        # Refit on full training set with best params
         best_model = clone(self.model)
-        best_model.set_params(**best_params)
+        best_model.set_params(**raw_params)
         best_model.fit(X, y)
-        
-        return best_model, best_params
+
+        iter_history = problem.iter_history
+        return best_model, raw_params, iter_history

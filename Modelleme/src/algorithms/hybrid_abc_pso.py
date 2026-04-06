@@ -56,7 +56,7 @@ class ABCPSO(Algorithm):
     def run_iteration(self, task, pop, fpos, velocity, pbest_x, pbest_f, trial, **params):
         # 1. Employed Bees / PSO Phase
         for i in range(self.population_size):
-            # Update velocity (standard PSO)
+            # Update velocity
             r1, r2 = np.random.rand(task.dimension), np.random.rand(task.dimension)
             velocity[i] = self.w * velocity[i] + \
                           self.c1 * r1 * (pbest_x[i] - pop[i]) + \
@@ -67,7 +67,7 @@ class ABCPSO(Algorithm):
             pop[i] = task.repair(pop[i], **params)
             fpos[i] = task.eval(pop[i])
             
-            # Update Pbest (Personal Best)
+            # Update Pbest
             if fpos[i] < pbest_f[i]:
                 pbest_f[i] = fpos[i]
                 pbest_x[i] = np.copy(pop[i])
@@ -76,25 +76,30 @@ class ABCPSO(Algorithm):
                 trial[i] += 1
 
         # 2. Onlooker Bees Phase
-        # Selection probability based on fitness
+        # Better fitness calculation to avoid div by zero or extreme values
         fitness = np.zeros(self.population_size)
+        eps = 1e-10
         for i in range(self.population_size):
             if pbest_f[i] >= 0:
-                fitness[i] = 1.0 / (1.0 + pbest_f[i])
+                fitness[i] = 1.0 / (1.0 + pbest_f[i] + eps)
             else:
                 fitness[i] = 1.0 + np.abs(pbest_f[i])
         
-        prob = fitness / np.sum(fitness)
+        sum_fit = np.sum(fitness)
+        if sum_fit == 0 or np.isnan(sum_fit):
+            prob = np.ones(self.population_size) / self.population_size
+        else:
+            prob = fitness / sum_fit
         
         for _ in range(self.population_size):
             # Selection
             i = np.random.choice(range(self.population_size), p=prob)
             
-            # Update single dimension (Hybrid Formula Eq 16)
+            # Update
             new_x = np.copy(pbest_x[i])
             m = np.random.randint(task.dimension)
             k = np.random.randint(self.population_size)
-            while k == i:
+            while k == i and self.population_size > 1:
                 k = np.random.randint(self.population_size)
             
             phi = np.random.uniform(-1, 1)
@@ -102,7 +107,7 @@ class ABCPSO(Algorithm):
             new_x = task.repair(new_x, **params)
             new_f = task.eval(new_x)
             
-            # Greedy selection for Pbest
+            # Selection
             if new_f < pbest_f[i]:
                 pbest_f[i] = new_f
                 pbest_x[i] = np.copy(new_x)
@@ -115,32 +120,34 @@ class ABCPSO(Algorithm):
         # 3. Scout Bees Phase
         for i in range(self.population_size):
             if trial[i] > self.limit:
-                pop[i] = task.lower + np.random.rand(task.dimension) * (task.upper - task.lower)
+                pop[i] = task.lower + np.random.uniform(0, 1, task.dimension) * (task.upper - task.lower)
                 fpos[i] = task.eval(pop[i])
                 pbest_x[i] = np.copy(pop[i])
                 pbest_f[i] = fpos[i]
                 velocity[i] = np.zeros(task.dimension)
                 trial[i] = 0
 
-        # Update Global Best (Algorithm class handles best_x/best_f)
         return pop, fpos, velocity, pbest_x, pbest_f, trial
 
     def run(self, task):
         pop, fpos, velocity, pbest_x, pbest_f, trial = self.init_population(task)
         history = []
         
+        # Self variables for Algorithm class compatibility if needed
+        self.best_x = pbest_x[np.argmin(pbest_f)]
+        self.best_f = np.min(pbest_f)
+        
         while not task.stopping_condition():
             pop, fpos, velocity, pbest_x, pbest_f, trial = self.run_iteration(
                 task, pop, fpos, velocity, pbest_x, pbest_f, trial
             )
             
-            # Update global best inside NiaPy style
-            best_idx = np.argmin(fpos)
-            if fpos[best_idx] < self.best_f:
-                self.best_f = fpos[best_idx]
-                self.best_x = np.copy(pop[best_idx])
+            best_idx = np.argmin(pbest_f)
+            if pbest_f[best_idx] < self.best_f:
+                self.best_f = pbest_f[best_idx]
+                self.best_x = np.copy(pbest_x[best_idx])
             
             history.append(self.best_f)
-            task.next_iteration()
+            task.next_iter()
                 
         return self.best_x, self.best_f, history

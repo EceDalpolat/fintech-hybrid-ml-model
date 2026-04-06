@@ -57,6 +57,10 @@ def load_and_merge_data(config):
             merged_df['is_payday'] = merged_df['day'].apply(lambda x: 1 if x in [1, 2, 14, 15, 16, 30, 31] else 0)
             merged_df.drop(columns=['date'], inplace=True)
             
+        # Advanced Feature Engineering (must run before dropping 'id')
+        merged_df = aggregate_user_behavior(merged_df)
+        merged_df = engineer_features(merged_df, config)
+
         # Drop columns defined in config
         drop_cols = config.get('feature_engineering', {}).get('drop_cols', [])
         existing_cols_to_drop = [c for c in drop_cols if c in merged_df.columns]
@@ -64,15 +68,77 @@ def load_and_merge_data(config):
             logger.info(f"Dropping columns: {existing_cols_to_drop}")
             merged_df.drop(columns=existing_cols_to_drop, inplace=True)
         
-        # Advanced Feature Engineering
-        merged_df = engineer_features(merged_df, config)
-        
         logger.info(f"Final processed data shape: {merged_df.shape}")
         return merged_df
         
     except Exception as e:
         logger.error(f"Error loading/processing data: {e}", exc_info=True)
         return None
+
+def aggregate_user_behavior(df):
+    """
+    Generate user-centric features to capture behavioral patterns.
+    """
+    logger.info("Aggregating user behavior...")
+    
+    # 1. Transaction Frequency
+    trans_counts = df.groupby('id').size().reset_index(name='user_trans_count')
+    df = pd.merge(df, trans_counts, on='id', how='left')
+    
+    # 2. Amount Aggregates
+    if 'amnt' in df.columns:
+        amt_aggs = df.groupby('id')['amnt'].agg(['mean', 'std', 'max']).reset_index()
+        amt_aggs.columns = ['id', 'user_avg_amnt', 'user_std_amnt', 'user_max_amnt']
+        df = pd.merge(df, amt_aggs, on='id', how='left')
+        df['user_std_amnt'] = df['user_std_amnt'].fillna(0) # For users with 1 transaction
+        
+    # 3. Categorical Diversity (How many different payment types does this user use?)
+    if 'pi' in df.columns:
+        pi_diversity = df.groupby('id')['pi'].nunique().reset_index(name='user_pi_diversity')
+        df = pd.merge(df, pi_diversity, on='id', how='left')
+        
+    return df
+
+def handle_outliers(df, columns, method='iqr', action='suppress', z_thresh=3.0):
+    """
+    Handle outliers in numerical columns using IQR or Z-Score.
+    
+    Args:
+        df (pd.DataFrame): Input dataframe.
+        columns (list): List of numerical columns.
+        method (str): 'iqr' or 'zscore'.
+        action (str): 'suppress' (capping) or 'drop'.
+        z_thresh (float): Z-Score threshold.
+        
+    Returns:
+        pd.DataFrame: Processed dataframe.
+    """
+    df_out = df.copy()
+    for col in columns:
+        if col not in df_out.columns:
+            continue
+            
+        if method == 'iqr':
+            Q1 = df_out[col].quantile(0.25)
+            Q3 = df_out[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+        else: # zscore
+            mean = df_out[col].mean()
+            std = df_out[col].std()
+            lower_bound = mean - z_thresh * std
+            upper_bound = mean + z_thresh * std
+            
+        if action == 'suppress':
+            df_out[col] = np.clip(df_out[col], lower_bound, upper_bound)
+            logger.debug(f"Suppressed outliers for {col} using {method}")
+        elif action == 'drop':
+            initial_count = len(df_out)
+            df_out = df_out[(df_out[col] >= lower_bound) & (df_out[col] <= upper_bound)]
+            logger.debug(f"Dropped {initial_count - len(df_out)} outlier rows for {col}")
+            
+    return df_out
 
 def engineer_features(df, config):
     """
@@ -97,6 +163,11 @@ def engineer_features(df, config):
     # 2. Amount Processing (Log Transform)
     if 'amnt' in df.columns:
         df['amnt'] = df['amnt'].fillna(0)
+        
+        # --- NEW: Outlier Suppression (Z-Score & IQR) as discussed ---
+        # We first suppress outliers on absolute amnt before log transform
+        df = handle_outliers(df, ['amnt'], method='iqr', action='suppress')
+        
         # Log-transform is usually better for skewed currency data
         df['log_amnt'] = np.log1p(df['amnt'])
         
@@ -109,15 +180,15 @@ def engineer_features(df, config):
     if 'age' in df.columns:
         median_age = df['age'].median()
         df['age'] = df['age'].fillna(median_age)
+        
+        # --- NEW: Outlier Suppression for Age ---
+        df = handle_outliers(df, ['age'], method='zscore', action='suppress', z_thresh=3.0)
+        
         bins = [0, 18, 30, 50, 70, 120]
         labels = ['Student', 'Young-Adult', 'Mid-Career', 'Steady', 'Senior']
         df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels)
 
     # 4. Temporal Features (Payday etc.)
-    # We had 'month' and 'is_weekend' from load_and_merge_data
-    # Let's add 'is_payday' (around 15th and end of month)
-    # Note: 'day' column needs to be extracted if available
-    
     # 5. Interaction Features
     if 'hhincome' in df.columns and 'log_amnt' in df.columns:
         df['amnt_income_interaction'] = df['log_amnt'] * (df['hhincome'].fillna(1))
