@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(watch -n 30 'ls -la /Users/ecedalpolat/TEZ/Modelleme/reports/model_*.pkl | awk '\\\\''{print $6, $7, $8, $NF}'\\\\''')",
+      "Bash(ls -la /Users/ecedalpolat/TEZ/Modelleme/reports/model_*.pkl)",
+      "Read(//Users/ecedalpolat/TEZ/**)"
+    ]
+  }
+}
