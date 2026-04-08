@@ -7,9 +7,8 @@ from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
-from sklearn.feature_selection import SelectFromModel
 from sklearn.ensemble import RandomForestClassifier
-from category_encoders import TargetEncoder
+from sklearn.preprocessing import TargetEncoder
 from src.model import get_model
 from src.utils import setup_logging
 import pandas as pd
@@ -115,7 +114,6 @@ def create_pipeline(preprocessor, model):
     return Pipeline(steps=[
         ('preprocessor', preprocessor),
         ('smote', SMOTE(random_state=42)),
-        ('feature_selection', SelectFromModel(RandomForestClassifier(n_estimators=50, random_state=42), threshold='median')),
         ('classifier', model)
     ])
 
