@@ -12,3 +12,4 @@ joblib
 openpyxl
 imbalanced-learn
 category_encoders
+shap

@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 from sklearn.metrics import confusion_matrix
+import shap
+
 
 sns.set_style("whitegrid")
 plt.rcParams.update({'font.size': 12})
@@ -29,10 +31,10 @@ os.makedirs('reports', exist_ok=True)
 # Shared style helpers
 # ---------------------------------------------------------------------------
 _METHOD_LABELS = {
-    'baseline': 'RF (Baseline)',
-    'pso':      'RF + PSO',
-    'abc':      'RF + ABC',
-    'abc-pso':  'RF + ABC-PSO',
+    'baseline': 'Baseline',
+    'pso':      'PSO Optimized',
+    'abc':      'ABC Optimized',
+    'abc-pso':  'ABC-PSO Hybrid',
 }
 
 _ALGO_STYLES = {
@@ -306,6 +308,53 @@ def plot_confusion_matrix_heatmap(model_path, X_test, y_test, class_names):
     plt.savefig(out, dpi=150)
     print(f"Saved: {out}")
     plt.close()
+
+# ---------------------------------------------------------------------------
+# SHAP Interpretability
+# ---------------------------------------------------------------------------
+def plot_shap_summary(pipeline, X_train, save_path="reports/shap_summary.png"):
+    """
+    Generate SHAP summary plot for model transparency.
+    """
+    try:
+        logger.info("Generating SHAP summary plot...")
+        # Get the model and preprocessor from pipeline
+        model = pipeline.named_steps['classifier']
+        preprocessor = pipeline.named_steps['preprocessor']
+        
+        # Transform data to get feature names after preprocessing
+        # This is tricky with ColumnTransformer, but let's try a sample
+        X_sample = X_train.sample(min(100, len(X_train)))
+        X_transformed = preprocessor.transform(X_sample)
+        
+        # Determine feature names (simplified)
+        # In a real scenario, we'd extract from preprocessor.get_feature_names_out()
+        try:
+            feature_names = preprocessor.get_feature_names_out()
+        except:
+            feature_names = [f"Feature {i}" for i in range(X_transformed.shape[1])]
+
+        # Explainer
+        if hasattr(model, "feature_importances_"):
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(X_transformed)
+        else:
+            # Fallback for KNN or other models
+            # Use a small background set for KernelExplainer
+            background = shap.sample(X_transformed, 10)
+            explainer = shap.KernelExplainer(model.predict_proba, background)
+            shap_values = explainer.shap_values(X_transformed)
+
+        plt.figure(figsize=(12, 8))
+        shap.summary_plot(shap_values, X_transformed, feature_names=feature_names, show=False)
+        plt.title("SHAP Feature Importance Summary", fontsize=14, fontweight='bold')
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"Saved: {save_path}")
+    except Exception as e:
+        print(f"[ERROR] Failed to generate SHAP plot: {e}")
+
 
 
 # ---------------------------------------------------------------------------

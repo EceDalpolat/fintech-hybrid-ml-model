@@ -55,6 +55,8 @@ def load_and_merge_data(config):
             merged_df['is_weekend'] = merged_df['day_of_week'].apply(lambda x: 1 if x >= 5 else 0)
             # Payday usually happens around 15th or end of month (30/31)
             merged_df['is_payday'] = merged_df['day'].apply(lambda x: 1 if x in [1, 2, 14, 15, 16, 30, 31] else 0)
+            merged_df['is_month_end'] = merged_df['date'].dt.is_month_end.astype(int)
+            merged_df['is_month_start'] = merged_df['date'].dt.is_month_start.astype(int)
             merged_df.drop(columns=['date'], inplace=True)
             
         # Advanced Feature Engineering (must run before dropping 'id')
@@ -192,5 +194,7 @@ def engineer_features(df, config):
     # 5. Interaction Features
     if 'hhincome' in df.columns and 'log_amnt' in df.columns:
         df['amnt_income_interaction'] = df['log_amnt'] * (df['hhincome'].fillna(1))
+        # NEW: Ratio of amount to estimated monthly income (assuming income is annual)
+        df['amnt_income_ratio'] = df['amnt'] / (df['hhincome'].fillna(1).replace(0, 1) / 12)
 
     return df

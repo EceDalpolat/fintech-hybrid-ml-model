@@ -1,4 +1,5 @@
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
 
 def get_model(model_config):
     """
@@ -30,6 +31,18 @@ def get_model(model_config):
             min_samples_split=min_samples_split,
             random_state=random_state,
             class_weight=class_weight,
+            n_jobs=-1
+        )
+    
+    elif model_type == 'knn':
+        n_neighbors = params.get('n_neighbors', 5)
+        weights = params.get('weights', 'uniform')
+        metric = params.get('metric', 'minkowski')
+        
+        return KNeighborsClassifier(
+            n_neighbors=n_neighbors,
+            weights=weights,
+            metric=metric,
             n_jobs=-1
         )
         

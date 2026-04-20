@@ -58,12 +58,24 @@ def train_model(model, X_train, y_train):
 
 def evaluate_model(model, X_test, y_test, label_encoder=None):
     """
-    Evaluate the model.
+    Evaluate the model and return metrics.
     """
     logger.info("Evaluating model...")
     predictions = model.predict(X_test)
-    accuracy = accuracy_score(y_test, predictions)
-    logger.info(f"Model Accuracy: {accuracy:.4f}")
+    
+    from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+    
+    acc = accuracy_score(y_test, predictions)
+    prec, rec, f1, _ = precision_recall_fscore_support(y_test, predictions, average='weighted')
+    
+    metrics = {
+        'accuracy': float(acc),
+        'f1_weighted': float(f1),
+        'precision_weighted': float(prec),
+        'recall_weighted': float(rec)
+    }
+    
+    logger.info(f"Model Accuracy: {acc:.4f} | F1: {f1:.4f}")
     
     if label_encoder:
         target_names = [str(cls) for cls in label_encoder.classes_]
@@ -72,28 +84,44 @@ def evaluate_model(model, X_test, y_test, label_encoder=None):
         report = classification_report(y_test, predictions)
     
     logger.info(f"\nClassification Report:\n{report}")
-    return accuracy
+    return metrics
 
-def build_preprocessor(X):
+def build_preprocessor(X, fast_mode=False):
     """
     Create a premium preprocessing pipeline based on input data.
+    fast_mode=True uses SimpleImputer for speed (useful during optimization).
     """
     # Identify numerical and categorical columns
     numeric_features = X.select_dtypes(include=['int64', 'float64']).columns
     categorical_features = X.select_dtypes(include=['object', 'category']).columns
     
-    logger.info(f"Numerical features: {len(numeric_features)}")
-    logger.info(f"Categorical features: {len(categorical_features)}")
+    # Split categorical features by cardinality
+    low_card_features = [col for col in categorical_features if X[col].nunique() < 10]
+    high_card_features = [col for col in categorical_features if X[col].nunique() >= 10]
     
-    # 1. Advanced Numerical Pipeline: Simple Imputation + Robust Scaling
+    logger.info(f"Numerical features: {len(numeric_features)}")
+    logger.info(f"Low-cardinality categorical: {len(low_card_features)}")
+    logger.info(f"High-cardinality categorical: {len(high_card_features)}")
+    
+    # 1. Advanced Numerical Pipeline: KNN Imputation (Slow) or Simple Imputer (Fast)
+    if fast_mode:
+        imputer = SimpleImputer(strategy='median')
+    else:
+        imputer = KNNImputer(n_neighbors=5)
+        
     numeric_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
+        ('imputer', imputer),
         ('scaler', RobustScaler())
     ])
     
-    # 2. Advanced Categorical Pipeline: Target Encoding for high-cardinality + Rare Encoding
-    # Note: TargetEncoder is efficient for many-class features like Merchant
-    categorical_transformer = Pipeline(steps=[
+    # 2. Low-Cardinality Categorical: Simple Imputation + One-Hot Encoding
+    low_card_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent', fill_value='missing')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', drop='first', sparse_output=False))
+    ])
+    
+    # 3. High-Cardinality Categorical: Rare Encoding + Target Encoding
+    high_card_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='most_frequent', fill_value='missing')),
         ('rare_encoder', RareEncoder(tol=0.02)),
         ('target_encoder', TargetEncoder())
@@ -102,7 +130,8 @@ def build_preprocessor(X):
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numeric_transformer, numeric_features),
-            ('cat', categorical_transformer, categorical_features)
+            ('cat_low', low_card_transformer, low_card_features),
+            ('cat_high', high_card_transformer, high_card_features)
         ])
         
     return preprocessor
@@ -147,7 +176,9 @@ def train_pipeline(df, config):
     logger.info(f"Target classes: {le.classes_}")
     
     # Preprocessor
-    preprocessor = build_preprocessor(X)
+    # Use fast_mode during optimization for speed
+    is_optimization = config.get('optimization', {}).get('enabled', False)
+    preprocessor = build_preprocessor(X, fast_mode=is_optimization)
         
     # Split data
     test_size = config['data'].get('test_size', 0.2)
@@ -167,6 +198,7 @@ def train_pipeline(df, config):
         return run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
     else:
         return run_single_training(X_train, y_train, X_test, y_test, preprocessor, config, le)
+
 
 def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le):
     method = config['optimization'].get('method', 'grid')
@@ -188,7 +220,7 @@ def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
 
             optimizer = NiapyOptimizer(pipeline_base, config_opt)
             # optimize now returns (model, params, iter_history)
-            best_model, best_params, _ = optimizer.optimize(X_train, y_train, algorithm=method)
+            best_model, best_params, opt_history = optimizer.optimize(X_train, y_train, algorithm=method)
             
     else:
         # Default Grid Search
@@ -206,11 +238,20 @@ def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
 
     # Evaluate Best Model
     logger.info("--- Evaluating Best Model ---")
-    evaluate_model(best_model, X_test, y_test, label_encoder=le)
+    
+    # Re-train the best model using the SLOW but HIGH QUALITY preprocessor (KNNImputer)
+    logger.info("Switching to High-Quality Preprocessor for final fit...")
+    final_preprocessor = build_preprocessor(X_train, fast_mode=False)
+    best_model.set_params(preprocessor=final_preprocessor)
+    best_model.fit(X_train, y_train)
+    
+    metrics = evaluate_model(best_model, X_test, y_test, label_encoder=le)
     
     # Save Model
     save_model(best_model, "reports/best_model.pkl")
-    return best_model
+    
+    iteration_history = opt_history if method in ['pso', 'abc', 'abc-pso'] else []
+    return best_model, metrics, iteration_history, le, X_train, X_test, y_train, y_test
 
 def run_single_training(X_train, y_train, X_test, y_test, preprocessor, config, le):
     logger.info("--- Training Single Model ---")
@@ -220,8 +261,8 @@ def run_single_training(X_train, y_train, X_test, y_test, preprocessor, config, 
     pipeline = create_pipeline(preprocessor, model)
     
     train_model(pipeline, X_train, y_train)
-    evaluate_model(pipeline, X_test, y_test, label_encoder=le)
-    return pipeline
+    metrics = evaluate_model(pipeline, X_test, y_test, label_encoder=le)
+    return pipeline, metrics, [], le, X_train, X_test, y_train, y_test
 
 def save_model(model, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)

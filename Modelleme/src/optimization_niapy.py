@@ -53,12 +53,12 @@ class HyperparameterOptimizationProblem(Problem):
     # ------------------------------------------------------------------
     @staticmethod
     def _map_params(x, param_names):
-        """Convert continuous NiaPy vector to typed RF hyperparameters."""
+        """Convert continuous NiaPy vector to typed hyperparameters."""
         params = {}
         for i, name in enumerate(param_names):
             val = x[i]
             if any(k in name for k in [
-                    'n_estimators', 'max_depth',
+                    'n_estimators', 'max_depth', 'n_neighbors',
                     'min_samples_split', 'min_samples_leaf', 'num_leaves']):
                 val = int(round(val))
                 if 'min_samples_split' in name:
@@ -67,6 +67,8 @@ class HyperparameterOptimizationProblem(Problem):
                     val = max(1, val)
                 elif 'n_estimators' in name:
                     val = max(10, val)
+                elif 'n_neighbors' in name:
+                    val = max(1, val)
                 elif 'max_depth' in name and val < 1:
                     val = None
             params[name] = val
