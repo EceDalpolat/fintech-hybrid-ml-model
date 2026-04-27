@@ -19,8 +19,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 from sklearn.metrics import confusion_matrix
+import logging
 import shap
 
+logger = logging.getLogger(__name__)
 
 sns.set_style("whitegrid")
 plt.rcParams.update({'font.size': 12})

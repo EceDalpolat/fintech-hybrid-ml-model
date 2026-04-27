@@ -1,7 +1,7 @@
 import logging
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import accuracy_score, classification_report
-from sklearn.impute import KNNImputer, SimpleImputer
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, RobustScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -104,10 +104,8 @@ def build_preprocessor(X, fast_mode=False):
     logger.info(f"High-cardinality categorical: {len(high_card_features)}")
     
     # 1. Advanced Numerical Pipeline: KNN Imputation (Slow) or Simple Imputer (Fast)
-    if fast_mode:
-        imputer = SimpleImputer(strategy='median')
-    else:
-        imputer = KNNImputer(n_neighbors=5)
+    # Reverting to SimpleImputer completely because KNNImputer is too slow on 30k+ rows
+    imputer = SimpleImputer(strategy='median')
         
     numeric_transformer = Pipeline(steps=[
         ('imputer', imputer),
