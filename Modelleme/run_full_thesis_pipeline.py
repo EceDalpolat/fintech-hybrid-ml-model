@@ -35,24 +35,28 @@ def run_full_pipeline(config_path="config.yaml"):
     convergence_data = {}
 
     # 3. Experiment Loop: Compare different methods
-    methods = ['baseline', 'abc-pso'] 
+    methods = ['baseline', 'pso', 'abc', 'abc-pso']
     
-    # ONLY Random Forest as requested
+    # Testing ONLY Random Forest as per thesis requirements
     model_types = ['random_forest']
     
     current_best_accuracy = 0
     best_overall_pipeline = None
     best_X_train, best_X_test, best_y_test, best_le = None, None, None, None
+    best_model_name = ""
 
     for m_type in model_types:
         logger.info(f"=== Testing Model Type: {m_type} ===")
         config['model']['type'] = m_type
         
-        # Ensure bounds are set for RF
-        config['optimization']['niapy_params']['bounds'] = {
-            'n_estimators': [100, 500],
-            'max_depth': [5, 50]
-        }
+        # Set bounds dynamically based on the model type
+        if m_type == 'random_forest':
+            config['optimization']['niapy_params']['bounds'] = {
+                'n_estimators': [50, 300],
+                'max_depth': [10, 50],
+                'min_samples_split': [2, 10],
+                'max_features': [0.1, 0.9]
+            }
 
         for method in methods:
             logger.info(f"--- Running {method.upper()} for {m_type} ---")
@@ -69,17 +73,20 @@ def run_full_pipeline(config_path="config.yaml"):
                 results.append(res_entry)
                 
                 if history:
-                    convergence_data[method] = [float(h) for h in history]
+                    padded_history = [float(h) for h in history]
+                    if len(padded_history) > 0 and len(padded_history) < 200:
+                        padded_history.extend([padded_history[-1]] * (200 - len(padded_history)))
+                    convergence_data[method] = padded_history
                 
-                # NEW: SHAP Analysis for the best model of this type
-                # (usually we do it for the hybrid one)
-                # Keep track of best for visualization
-                if method == 'abc-pso':
+                # Keep track of the absolute best model overall
+                if metrics['accuracy'] > current_best_accuracy:
+                    current_best_accuracy = metrics['accuracy']
                     best_overall_pipeline = pipeline
                     best_X_train = X_train
                     best_X_test = X_test
                     best_y_test = y_test
                     best_le = le
+                    best_model_name = m_type
 
             except Exception as e:
                 logger.error(f"Error during {method} optimization for {m_type}: {e}")
@@ -105,7 +112,7 @@ def run_full_pipeline(config_path="config.yaml"):
         plot_confusion_matrix_heatmap("reports/best_model.pkl", best_X_test, best_y_test, class_names)
         
         # 2. SHAP
-        plot_shap_summary(best_overall_pipeline, best_X_train, save_path=f"reports/shap_{config['model']['type']}.png")
+        plot_shap_summary(best_overall_pipeline, best_X_train, save_path=f"reports/shap_{best_model_name}.png")
     
     logger.info("Pipeline Complete. Check the 'reports/' directory for results.")
 

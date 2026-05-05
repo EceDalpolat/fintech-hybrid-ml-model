@@ -21,26 +21,22 @@ optimization:
   method: "abc-pso"  # Options: grid, abc, pso, abc-pso
   scoring: "accuracy"
   cv: 3
-  n_jobs: 2
+  n_jobs: 8
   verbose: 2
 
   # NiaPy meta-heuristic parameters
-  # Khuat & Le (2018): NE=50, MCN=1000; reduced here for practical runtime.
-  # Increase max_iters to 100-200 for final thesis run.
+  # Khuat & Le (2018): NE=50, MCN=1000
   niapy_params:
-    population_size: 10
-    max_iters: 3            # Even faster run to avoid another hang
-    # ABC-PSO specific
-    w: 0.729
-    c1: 1.494
-    c2: 1.494
-    limit: 50
+    population_size: 20
+    max_iters: 50
+    # Chen (2020) Hybrid ABC-PSO parameters
+    w: 0.9
     bounds:
-      n_estimators: [100, 800]
+      n_estimators: [100, 1500]
       max_depth: [5, 100]
       min_samples_split: [2, 20]
       min_samples_leaf: [1, 10]
-      #max_features: [0.1, 0.9]
+      max_features: [0.05, 1.0]
 
   # Classic Grid Search (backup)
   param_grid:
@@ -52,7 +48,7 @@ training:
 
 feature_engineering:
   drop_cols: ['id', 'time', 'tran', 'tran_report', 'paylocaltime', 'cashdeptime', 'cashgettime', 'cashgetsource', 'cashgetlocation']
-  missing_threshold: 0.95
+  missing_threshold: 0.80
   
 logging:
   config_path: "logging.yaml"

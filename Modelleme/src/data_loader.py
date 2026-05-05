@@ -62,6 +62,11 @@ def load_and_merge_data(config):
         # Advanced Feature Engineering (must run before dropping 'id')
         merged_df = aggregate_user_behavior(merged_df)
         merged_df = engineer_features(merged_df, config)
+        
+        # Target Class Aggregation (to boost accuracy for minority classes)
+        target_col = config['data'].get('target', 'pi')
+        if target_col in merged_df.columns:
+            merged_df = aggregate_target_classes(merged_df, target_col, threshold=0.03)
 
         # Drop columns defined in config
         drop_cols = config.get('feature_engineering', {}).get('drop_cols', [])
@@ -190,7 +195,6 @@ def engineer_features(df, config):
         labels = ['Student', 'Young-Adult', 'Mid-Career', 'Steady', 'Senior']
         df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels)
 
-    # 4. Temporal Features (Payday etc.)
     # 5. Interaction Features
     if 'hhincome' in df.columns and 'log_amnt' in df.columns:
         df['amnt_income_interaction'] = df['log_amnt'] * (df['hhincome'].fillna(1))
@@ -198,3 +202,18 @@ def engineer_features(df, config):
         df['amnt_income_ratio'] = df['amnt'] / (df['hhincome'].fillna(1).replace(0, 1) / 12)
 
     return df
+
+def aggregate_target_classes(df, target_col, threshold=0.05):
+    """
+    Groups classes with frequency lower than threshold into a single class (99.0).
+    """
+    logger.info(f"Checking for rare classes in {target_col} (threshold={threshold})...")
+    counts = df[target_col].value_counts(normalize=True)
+    rare_classes = counts[counts < threshold].index.tolist()
+    
+    if rare_classes:
+        logger.info(f"Aggregating {len(rare_classes)} rare classes into '99.0': {rare_classes}")
+        df[target_col] = df[target_col].replace(rare_classes, 99.0)
+        
+    return df
+

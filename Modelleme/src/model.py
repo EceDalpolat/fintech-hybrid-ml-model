@@ -23,12 +23,14 @@ def get_model(model_config):
         min_samples_split = params.get('min_samples_split', 2)
         random_state = params.get('random_state', 42)
         
-        class_weight = params.get('class_weight', None)
+        class_weight = params.get('class_weight', 'balanced_subsample')
+        max_features = params.get('max_features', 'sqrt')
         
         return RandomForestClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
             min_samples_split=min_samples_split,
+            max_features=max_features,
             random_state=random_state,
             class_weight=class_weight,
             n_jobs=-1

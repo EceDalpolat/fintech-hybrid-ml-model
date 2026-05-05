@@ -184,17 +184,14 @@ def plot_experiment_results(json_path="reports/experiment_results.json",
         return
 
     df = pd.read_json(json_path)
-    df['Method'] = df['method'].map(_METHOD_LABELS)
+    df['Method'] = df['method'].map(_METHOD_LABELS).fillna(df['method'])
 
     df_m = df.melt(id_vars=['Method'], value_vars=['accuracy', 'f1_weighted'],
                    var_name='Metric', value_name='Score')
     df_m['Metric'] = df_m['Metric'].map({'accuracy': 'Accuracy', 'f1_weighted': 'F1-Weighted'})
 
     fig, ax = plt.subplots(figsize=(12, 7))
-    method_order = [_METHOD_LABELS[m] for m in ['baseline', 'pso', 'abc', 'abc-pso']
-                    if m in df['method'].values]
-    sns.barplot(x='Method', y='Score', hue='Metric', data=df_m,
-                order=method_order, palette='viridis', ax=ax)
+    sns.barplot(x='Method', y='Score', hue='Metric', data=df_m, palette='viridis', ax=ax)
 
     for patch in ax.patches:
         h = patch.get_height()
@@ -207,13 +204,13 @@ def plot_experiment_results(json_path="reports/experiment_results.json",
 
     ax.set_ylim(0.5, 1.05)
     ax.set_title(
-        'Random Forest Variants – Performance on Payment Preference Dataset\n'
+        'Model Comparison – Performance on Payment Preference Dataset\n'
         'Accuracy and F1-Weighted',
         fontsize=13, fontweight='bold'
     )
     ax.set_xlabel('Optimisation Strategy', fontsize=12)
     ax.set_ylabel('Score (Higher is Better)', fontsize=12)
-    ax.legend(bbox_inches='tight', fontsize=11)
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=11)
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     print(f"Saved: {save_path}")
@@ -239,12 +236,15 @@ def plot_rf_convergence(json_path="reports/convergence_rf.json",
     fig, ax = plt.subplots(figsize=(10, 6))
     plotted = False
 
-    for method in ['pso', 'abc', 'abc-pso']:
+    for method in data.keys():
         hist = data.get(method, [])
         if not hist:
             continue
         style = _ALGO_STYLES.get(method, {})
-        label = _METHOD_LABELS.get(method, method.upper())
+        if method.startswith('abc-pso_'):
+            label = f"ABC-PSO ({method.split('_')[1]} iters)"
+        else:
+            label = _METHOD_LABELS.get(method, method.upper())
         ax.plot(range(1, len(hist) + 1), hist,
                 label=label,
                 color=style.get('color', None),
@@ -360,6 +360,32 @@ def plot_shap_summary(pipeline, X_train, save_path="reports/shap_summary.png"):
 
 
 # ---------------------------------------------------------------------------
+def plot_correlation_matrix(df, save_path="reports/correlation_matrix.png"):
+    """
+    Generate a heatmap of numerical feature correlations.
+    """
+    try:
+        logger.info("Generating Correlation Matrix plot...")
+        # Select only numerical columns
+        numeric_df = df.select_dtypes(include=['int64', 'float64'])
+        
+        # If too many columns, take the top 20 most variant ones
+        if numeric_df.shape[1] > 20:
+            top_cols = numeric_df.var().sort_values(ascending=False).head(20).index
+            numeric_df = numeric_df[top_cols]
+            
+        corr = numeric_df.corr()
+        
+        plt.figure(figsize=(12, 10))
+        sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, cbar_kws={"shrink": .8})
+        plt.title("Numerical Feature Correlation Matrix (Top 20 by Variance)", fontsize=14, fontweight='bold')
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=150)
+        plt.close()
+        print(f"Saved: {save_path}")
+    except Exception as e:
+        print(f"[ERROR] Failed to generate correlation matrix: {e}")
+
 if __name__ == "__main__":
     plot_benchmarks()
     plot_convergence_curves()

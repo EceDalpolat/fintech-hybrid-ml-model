@@ -149,7 +149,7 @@ class NiapyOptimizer:
         problem = HyperparameterOptimizationProblem(
             self.model, X, y, self.bounds,
             cv=self.opt_config.get('cv', 3),
-            n_jobs=self.opt_config.get('n_jobs', -1),
+            n_jobs=1,
             scoring=self.opt_config.get('scoring', 'f1_weighted'),
             population_size=pop_size,
         )

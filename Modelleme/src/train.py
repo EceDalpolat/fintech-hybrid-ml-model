@@ -134,13 +134,20 @@ def build_preprocessor(X, fast_mode=False):
         
     return preprocessor
 
+from sklearn.pipeline import Pipeline
+from sklearn.feature_selection import SelectFromModel
+
 def create_pipeline(preprocessor, model):
     """
     Create the standardized high-performance pipeline for the accuracy push.
     """
+    # Use a basic Random Forest for feature selection to drop noise
+    fs_model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+    feature_selector = SelectFromModel(fs_model, threshold='median')
+    
     return Pipeline(steps=[
         ('preprocessor', preprocessor),
-        ('smote', SMOTE(random_state=42)),
+        ('feature_selection', feature_selector),
         ('classifier', model)
     ])
 
@@ -192,32 +199,39 @@ def train_pipeline(df, config):
     optimization_config = config.get('optimization', {})
     
     if optimization_config.get('enabled', False):
-        # Accuracy Push: Using full data for optimization as requested
-        return run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
+        # Accuracy Push: Subsampling for faster optimization
+        # We take a representative 50% sample for the optimization loop
+        X_opt, _, y_opt, _ = train_test_split(X_train, y_train, train_size=0.5, random_state=42, stratify=y_train)
+        logger.info(f"Subsampling for optimization: {X_opt.shape} rows (50% of training set)")
+        return run_optimization(X_opt, y_opt, X_test, y_test, preprocessor, config, le, X_train_full=X_train, y_train_full=y_train)
     else:
         return run_single_training(X_train, y_train, X_test, y_test, preprocessor, config, le)
 
 
-def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le):
+def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le, X_train_full=None, y_train_full=None):
+    if X_train_full is None:
+        X_train_full, y_train_full = X_train, y_train
+        
     method = config['optimization'].get('method', 'grid')
     logger.info(f"--- Starting Optimization using method: {method} ---")
     
     base_model = get_model(config.get('model', {}))
-    
-    # ACCURACY PUSH: Using centralized pipeline builder
     pipeline_base = create_pipeline(preprocessor, base_model)
 
     if method in ['pso', 'abc', 'abc-pso']:
+        config_opt = copy.deepcopy(config)
+        if 'niapy_params' in config_opt['optimization'] and 'bounds' in config_opt['optimization']['niapy_params']:
+            bounds = config_opt['optimization']['niapy_params']['bounds']
+            new_bounds = {f'classifier__{k}': v for k, v in bounds.items()}
+            config_opt['optimization']['niapy_params']['bounds'] = new_bounds
+
+        if method == 'abc-pso':
+            from src.optimization_chen import ChenHybridOptimizer
+            optimizer = ChenHybridOptimizer(pipeline_base, config_opt)
+            best_model, best_params, opt_history = optimizer.optimize(X_train, y_train)
+        else:
             from src.optimization_niapy import NiapyOptimizer
-
-            config_opt = copy.deepcopy(config)
-            if 'niapy_params' in config_opt['optimization'] and 'bounds' in config_opt['optimization']['niapy_params']:
-                bounds = config_opt['optimization']['niapy_params']['bounds']
-                new_bounds = {f'classifier__{k}': v for k, v in bounds.items()}
-                config_opt['optimization']['niapy_params']['bounds'] = new_bounds
-
             optimizer = NiapyOptimizer(pipeline_base, config_opt)
-            # optimize now returns (model, params, iter_history)
             best_model, best_params, opt_history = optimizer.optimize(X_train, y_train, algorithm=method)
             
     else:
@@ -232,16 +246,16 @@ def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
         logger.info("Running Grid Search...")
         grid_search.fit(X_train, y_train)
         best_model = grid_search.best_estimator_
+        opt_history = []
         logger.info(f"Best CV Score: {grid_search.best_score_:.4f}")
 
     # Evaluate Best Model
     logger.info("--- Evaluating Best Model ---")
     
-    # Re-train the best model using the SLOW but HIGH QUALITY preprocessor (KNNImputer)
-    logger.info("Switching to High-Quality Preprocessor for final fit...")
-    final_preprocessor = build_preprocessor(X_train, fast_mode=False)
+    logger.info("Switching to High-Quality Preprocessor and FULL dataset for final fit...")
+    final_preprocessor = build_preprocessor(X_train_full, fast_mode=False)
     best_model.set_params(preprocessor=final_preprocessor)
-    best_model.fit(X_train, y_train)
+    best_model.fit(X_train_full, y_train_full)
     
     metrics = evaluate_model(best_model, X_test, y_test, label_encoder=le)
     
@@ -249,7 +263,7 @@ def run_optimization(X_train, y_train, X_test, y_test, preprocessor, config, le)
     save_model(best_model, "reports/best_model.pkl")
     
     iteration_history = opt_history if method in ['pso', 'abc', 'abc-pso'] else []
-    return best_model, metrics, iteration_history, le, X_train, X_test, y_train, y_test
+    return best_model, metrics, iteration_history, le, X_train_full, X_test, y_train_full, y_test
 
 def run_single_training(X_train, y_train, X_test, y_test, preprocessor, config, le):
     logger.info("--- Training Single Model ---")
