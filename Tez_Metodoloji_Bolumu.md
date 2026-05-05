@@ -55,3 +55,11 @@ Tablo 1'deki deneysel sonuçlar analiz edildiğinde; Hibrit ABC-PSO algoritması
 Performans metriklerinin hesaplanması sürecinde model yanlılığını (bias) sıfıra indirmek için, veri seti %80 Eğitim ve %20 Test olacak şekilde tabakalı (Stratified) olarak bölünmüştür. Sınıflandırma başarısını kanıtlamak için yalnızca Doğruluk (Accuracy) ile yetinilmemiş; F1-Skoru, Kesinlik (Precision) ve Duyarlılık (Recall) metrikleri de analize dahil edilmiştir.
 
 Son olarak, Random Forest ve benzeri makine öğrenmesi topluluklarının doğası gereği bir "Kara Kutu (Black Box)" olması problemini aşmak amacıyla (Liaw ve Wiener, 2002), literatürdeki en gelişmiş yorumlanabilirlik yaklaşımı olan **SHAP (SHapley Additive exPlanations)** oyun teorisi modeli sisteme entegre edilmiştir. Bu sayede modelin sadece bir tahmin yapmasıyla kalınmamış, kullanıcının finansal veya demografik özelliğinin (Örn: İşlem Tutarı, Yaş), dijital ödeme tercihini *hangi yönde* ve *ne kadar şiddetle* etkilediği şeffaf bir nedensellik çerçevesinde ortaya konmuştur.
+
+## 3.6. Benchmark Fonksiyonları Üzerinde Algoritma Doğrulaması (Mathematical Validation)
+
+Önerilen Hibrit ABC-PSO algoritmasının arama ve hiper-parametre optimizasyonu yeteneğini finansal veri setimize uygulamadan önce, literatürdeki standart matematiksel optimizasyon fonksiyonları (Benchmark Functions) üzerinde performans testleri (Validation) yapılmıştır. Chen ve diğerlerinin (2020) metodolojisi baz alınarak, PSO, ABC ve ABC-PSO algoritmaları dört farklı sürekli uzay fonksiyonunda (Sphere, Rosenbrock, Rastrigin, Griewank) yarışmaya tabi tutulmuştur.
+
+![Benchmark Yakınsama Analizi](/Users/ecedalpolat/TEZ/Modelleme/reports/benchmark_convergence.png)
+
+Gerçekleştirilen bu deneysel validasyon sonucunda (grafiklerde görüldüğü üzere), klasik PSO'nun çoğu fonksiyonda çok erken yerel optimuma takıldığı, ABC'nin ise yavaş bir ivmeyle yaklaştığı kanıtlanmıştır. Buna karşın Hibrit ABC-PSO (Yeşil Çizgi) algoritması, tüm kıyaslama fonksiyonlarında arama uzayını hızla tarayarak en düşük hata (Best Fitness) oranına en hızlı sürede ulaşan algoritma olmuştur. Bu matematiksel ispat, algoritmanın hiper-parametre optimizasyonu (Random Forest Tuning) için kullanılmasının bilimsel olarak tutarlı ve geçerli olduğunu kanıtlamaktadır.
