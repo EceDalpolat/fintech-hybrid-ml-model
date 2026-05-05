@@ -27,8 +27,8 @@ optimization:
   # NiaPy meta-heuristic parameters
   # Khuat & Le (2018): NE=50, MCN=1000
   niapy_params:
-    population_size: 20
-    max_iters: 50
+    population_size: 30  # Chen (2020): NP=30, matched to original paper
+    max_iters: 150
     # Chen (2020) Hybrid ABC-PSO parameters
     w: 0.9
     bounds:

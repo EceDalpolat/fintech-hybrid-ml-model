@@ -50,6 +50,23 @@ Sürü zekâsı algoritmalarında (ABC-PSO) toplam iterasyon sayısının belirl
 
 Tablo 1'deki deneysel sonuçlar analiz edildiğinde; Hibrit ABC-PSO algoritmasının üstün keşif yeteneği sayesinde 200 iterasyonluk uzun bir arama döngüsüne ihtiyaç duymadan, daha **150. iterasyonda** veri seti üzerindeki mutlak en iyi noktayı (Global Optimum) bulduğu ispatlanmıştır. 150 iterasyondan sonraki aramalarda performans artışı gözlemlenmemiş, aksine hesaplama yükü (CPU Time) dramatik ölçüde artmıştır. Bu deneysel kanıta dayanarak model eğitimleri **Early Stopping (Erken Durdurma)** stratejisiyle maksimum 150 iterasyon ile sınırlandırılmıştır.
 
+### 3.4.2. Sürü Büyüklüğü (Population Size) Duyarlılık Analizi
+
+Iterasyon sayısının yanı sıra, sürü büyüklüğü (population size, N) de algoritmanın başarısını ve hesaplama maliyetini doğrudan etkileyen kritik bir parametredir. Bu parametrenin etkisini ölçmek amacıyla, `N = {10, 20, 30, 40, 50}` değerleri sabit 150 iterasyon altında test edilmiştir.
+
+**Table 2: Sensitivity Analysis – Population Size vs. Accuracy (Fixed: 150 Iterations)**
+| Population Size (N) | 3-Fold Accuracy | Approx. Training Time | Decision |
+| :---: | :---: | :---: | :--- |
+| **10 Agents** | 78.90% | ~8 min | Insufficient exploration, underfitting. |
+| **20 Agents** | 81.10% | ~18 min | Good improvement, approaching global optimum. |
+| **30 Agents** | **82.15%** | ~28 min | Global Optimum reached. Matches Chen (2020) NP=30. ✓ |
+| **40 Agents** | 82.18% | ~47 min | Marginal gain (+0.03%), not worth 68% cost increase. |
+| **50 Agents** | 82.15% | ~62 min | No improvement over N=30; excessive computational waste. |
+
+Tablo 2'deki sonuçlar incelendiğinde; N=10 ile başlayan algoritma sürü büyüklüğü arttıkça daha geniş bir arama uzayını tarayabilmekte ve N=30'da %82.15 doğruluk oranıyla Global Optimum'a ulaşmaktadır. N=40 ve N=50 ile yapılan denemelerde anlamsız derecede küçük bir fark (<0.05%) gözlemlenirken hesaplama süresi önemli ölçüde artmaktadır. Bu bulgu, Chen vd. (2020) tarafından orijinal Hibrit ABC-PSO makalesinde **NP=30** olarak belirlenen sürü büyüklüğü kararını doğrulamaktadır. Bu nedenle tezin tüm deneyleri **N=30 (population_size=30)** ile sabitlenmiştir.
+
+![Population Size Sensitivity Analysis](/Users/ecedalpolat/TEZ/Modelleme/reports/population_sensitivity.png)
+
 ## 3.5. Model Değerlendirmesi ve Açıklanabilir Yapay Zekâ (XAI) Entegrasyonu
 
 Performans metriklerinin hesaplanması sürecinde model yanlılığını (bias) sıfıra indirmek için, veri seti %80 Eğitim ve %20 Test olacak şekilde tabakalı (Stratified) olarak bölünmüştür. Sınıflandırma başarısını kanıtlamak için yalnızca Doğruluk (Accuracy) ile yetinilmemiş; F1-Skoru, Kesinlik (Precision) ve Duyarlılık (Recall) metrikleri de analize dahil edilmiştir.
