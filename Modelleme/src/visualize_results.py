@@ -122,7 +122,7 @@ def plot_convergence_curves(json_path="reports/benchmark_results.json",
             hist = results[pname][algo].get(hist_key, [])
             if not hist:
                 continue
-            hist_arr = np.clip(hist, 1e-300, None)
+            hist_arr = np.clip(hist, 1e-20, None)
             ax.semilogy(hist_arr, label=algo,
                         color=style['color'],
                         linestyle=style['linestyle'],
@@ -158,7 +158,7 @@ def plot_convergence_curves(json_path="reports/benchmark_results.json",
             hist = results[pname][algo].get(hist_key, [])
             if not hist:
                 continue
-            ax2.semilogy(np.clip(hist, 1e-300, None), label=algo,
+            ax2.semilogy(np.clip(hist, 1e-20, None), label=algo,
                          color=style['color'],
                          linestyle=style['linestyle'],
                          linewidth=style['linewidth'])

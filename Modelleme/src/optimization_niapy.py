@@ -9,7 +9,7 @@ from niapy.problems import Problem
 from niapy.task import Task
 from niapy.algorithms.basic import ParticleSwarmOptimization, ArtificialBeeColonyAlgorithm
 from src.algorithms.hybrid_abc_pso import ABCPSO
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_validate, ShuffleSplit
 from sklearn.base import clone
 
 logger = logging.getLogger(__name__)
@@ -81,14 +81,24 @@ class HyperparameterOptimizationProblem(Problem):
         model.set_params(**params)
 
         try:
-            scores = cross_val_score(
+            # We track multiple metrics but optimize for the one in config
+            scoring_list = ['accuracy', 'balanced_accuracy', 'f1_weighted', 'precision_weighted', 'recall_weighted']
+            cv_results = cross_validate(
                 model, self.X, self.y,
-                cv=self.cv, n_jobs=self.n_jobs, scoring=self.scoring
+                cv=self.cv, n_jobs=self.n_jobs, scoring=scoring_list
             )
-            mean_score = float(scores.mean())
+            
+            # Map of results
+            scores_map = {m: cv_results[f'test_{m}'].mean() for m in scoring_list}
+            mean_score = float(scores_map.get(self.scoring, 0.0))
+            
+            # Save all metrics for the log
+            self.current_metrics = scores_map
+            
         except Exception as e:
             logger.error(f"Error evaluating params {params}: {e}")
             mean_score = 0.0
+            self.current_metrics = {}
 
         fitness = 1.0 - mean_score
         self.call_count += 1
@@ -104,9 +114,14 @@ class HyperparameterOptimizationProblem(Problem):
         if self.call_count % self.population_size == 0:
             iteration = self.call_count // self.population_size
             self.iter_history.append(self.best_score_so_far)
+            
+            # Formulate a nice log string with multiple metrics
+            m = self.current_metrics
+            metrics_str = f"Acc: {m.get('accuracy',0):.4f} | BalAcc: {m.get('balanced_accuracy',0):.4f} | F1: {m.get('f1_weighted',0):.4f}"
+            
             logger.info(
-                f"Iter {iteration:3d} | best {self.scoring}: "
-                f"{self.best_score_so_far:.4f} | params: {params}"
+                f"Iter {iteration:3d} | BEST {self.scoring}: {self.best_score_so_far:.4f} | "
+                f"Current {metrics_str} | params: {params}"
             )
 
         logger.debug(f"Params: {params} -> {self.scoring}: {mean_score:.4f}")
@@ -146,9 +161,13 @@ class NiapyOptimizer:
             f"| total evals≈{pop_size * max_iters}"
         )
 
+        cv_param = self.opt_config.get('cv', 3)
+        if cv_param == 1:
+            cv_param = ShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+
         problem = HyperparameterOptimizationProblem(
             self.model, X, y, self.bounds,
-            cv=self.opt_config.get('cv', 3),
+            cv=cv_param,
             n_jobs=1,
             scoring=self.opt_config.get('scoring', 'f1_weighted'),
             population_size=pop_size,

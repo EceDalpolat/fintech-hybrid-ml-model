@@ -29,14 +29,7 @@ def run_experiment():
     # 1. Load Config and Data
     try:
         config = load_config()
-        # Enforce Safe & Fast Mode
-        config['optimization']['n_jobs'] = 2 
-        # Enforce Population 20 (Faster proxy)
-        config['optimization']['niapy_params']['population_size'] = 20
-        # Enforce CV = 2 (Faster proxy)
-        config['optimization']['cv'] = 2
-        
-        print("Configuration loaded. Enforced n_jobs=2, population_size=20, cv=2.")
+        print("Configuration loaded. Running with true parameters from config.yaml.")
     except Exception as e:
         print(f"Error loading config: {e}")
         return

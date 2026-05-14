@@ -208,7 +208,7 @@ def plot_convergence(results, save_path='reports/benchmark_convergence.png',
                 continue
             hist = results[pname][algo]['mean_iter_history']
             # Replace zeros / negatives with a small positive for log scale
-            hist_arr = np.clip(hist, 1e-300, None)
+            hist_arr = np.clip(hist, 1e-20, None)
             # Downsample for clarity
             if len(hist_arr) > max_points:
                 idx_pts = np.linspace(0, len(hist_arr) - 1, max_points, dtype=int)
@@ -249,7 +249,7 @@ def plot_convergence(results, save_path='reports/benchmark_convergence.png',
         for algo, style in _ALGO_STYLES.items():
             if algo not in results[pname]:
                 continue
-            hist = np.clip(results[pname][algo]['mean_iter_history'], 1e-300, None)
+            hist = np.clip(results[pname][algo]['mean_iter_history'], 1e-20, None)
             ax2.semilogy(hist, label=algo,
                          color=style['color'],
                          linestyle=style['linestyle'],

@@ -19,9 +19,9 @@ model:
 optimization:
   enabled: true
   method: "abc-pso"  # Options: grid, abc, pso, abc-pso
-  scoring: "balanced_accuracy"
-  cv: 1
-  n_jobs: 10
+  scoring: "accuracy"
+  cv: 3
+  n_jobs: 8
   verbose: 2
 
   # NiaPy meta-heuristic parameters

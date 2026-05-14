@@ -17,6 +17,7 @@ from src.visualize_results import (
 def setup_master_logging():
     logging.basicConfig(
         level=logging.INFO,
+        force=True,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler("reports/master_benchmark.log"),
