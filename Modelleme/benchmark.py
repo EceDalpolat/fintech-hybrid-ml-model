@@ -77,9 +77,12 @@ def main():
         if os.path.exists("reports/experiment_results.json"):
             results_df = pd.read_json("reports/experiment_results.json")
             print("\n📈 QUICK PERFORMANCE SUMMARY:")
-            print("-" * 30)
-            print(results_df[['method', 'accuracy', 'f1_weighted']].to_string(index=False))
-            print("-" * 30)
+            print("-" * 80)
+            cols_to_print = ['method', 'accuracy', 'balanced_accuracy', 'f1_weighted', 'precision_weighted', 'recall_weighted']
+            # Only print columns that actually exist to avoid KeyError if an old file is read
+            cols_to_print = [c for c in cols_to_print if c in results_df.columns]
+            print(results_df[cols_to_print].to_string(index=False))
+            print("-" * 80)
 
     except Exception as e:
         logger.error(f"❌ Master Benchmark failed: {e}", exc_info=True)

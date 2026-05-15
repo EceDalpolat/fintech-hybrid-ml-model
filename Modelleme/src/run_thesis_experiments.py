@@ -17,7 +17,7 @@ import json
 
 from sklearn.metrics import (accuracy_score, f1_score,
                               precision_score, recall_score,
-                              classification_report)
+                              classification_report, balanced_accuracy_score)
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 import joblib
@@ -98,11 +98,13 @@ def run_experiment_suite(config_path="config.yaml"):
 
         preds = best_model.predict(X_test)
         acc   = accuracy_score(y_test, preds)
+        bal_acc = balanced_accuracy_score(y_test, preds)
         f1w   = f1_score(y_test, preds, average='weighted')
         prec  = precision_score(y_test, preds, average='weighted', zero_division=0)
         rec   = recall_score(y_test, preds, average='weighted', zero_division=0)
 
         logger.info(f"Accuracy     : {acc:.4f}")
+        logger.info(f"Balanced Acc : {bal_acc:.4f}")
         logger.info(f"F1 (weighted): {f1w:.4f}")
         logger.info(f"Precision    : {prec:.4f}")
         logger.info(f"Recall       : {rec:.4f}")
@@ -110,6 +112,7 @@ def run_experiment_suite(config_path="config.yaml"):
         results.append({
             'method':               method,
             'accuracy':             acc,
+            'balanced_accuracy':    bal_acc,
             'f1_weighted':          f1w,
             'precision_weighted':   prec,
             'recall_weighted':      rec,

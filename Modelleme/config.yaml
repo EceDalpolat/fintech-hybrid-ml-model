@@ -14,7 +14,7 @@ model:
     max_depth: 20
     min_samples_split: 5
     random_state: 42
-    #class_weight: "balanced"
+    class_weight: "balanced"
 
 optimization:
   enabled: true
