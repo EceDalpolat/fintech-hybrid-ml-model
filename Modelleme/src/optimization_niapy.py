@@ -110,19 +110,22 @@ class HyperparameterOptimizationProblem(Problem):
         # Per-evaluation record
         self.eval_history.append(self.best_score_so_far)
 
+        # Formulate a nice log string with multiple metrics
+        m = self.current_metrics
+        metrics_str = f"Acc: {m.get('accuracy',0):.4f} | BalAcc: {m.get('balanced_accuracy',0):.4f} | F1: {m.get('f1_weighted',0):.4f}"
+        
+        iteration = (self.call_count - 1) // self.population_size + 1
+        pop_idx = (self.call_count - 1) % self.population_size + 1
+        
+        logger.info(
+            f"Iter {iteration:3d} (Eval {pop_idx:2d}/{self.population_size}) | "
+            f"BEST {self.scoring}: {self.best_score_so_far:.4f} | "
+            f"Current {metrics_str} | params: {params}"
+        )
+
         # Per-iteration record (logged once per full population sweep)
         if self.call_count % self.population_size == 0:
-            iteration = self.call_count // self.population_size
             self.iter_history.append(self.best_score_so_far)
-            
-            # Formulate a nice log string with multiple metrics
-            m = self.current_metrics
-            metrics_str = f"Acc: {m.get('accuracy',0):.4f} | BalAcc: {m.get('balanced_accuracy',0):.4f} | F1: {m.get('f1_weighted',0):.4f}"
-            
-            logger.info(
-                f"Iter {iteration:3d} | BEST {self.scoring}: {self.best_score_so_far:.4f} | "
-                f"Current {metrics_str} | params: {params}"
-            )
 
         logger.debug(f"Params: {params} -> {self.scoring}: {mean_score:.4f}")
         return fitness

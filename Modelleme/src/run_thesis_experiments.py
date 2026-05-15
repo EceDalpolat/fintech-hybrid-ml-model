@@ -14,6 +14,7 @@ import numpy as np
 import os
 import copy
 import json
+import time
 
 from sklearn.metrics import (accuracy_score, f1_score,
                               precision_score, recall_score,
@@ -72,6 +73,7 @@ def run_experiment_suite(config_path="config.yaml"):
     os.makedirs("reports", exist_ok=True)
 
     for method in methods:
+        method_start_time = time.time()
         logger.info(f"\n{'='*20}\nMethod: {method.upper()}\n{'='*20}")
 
         base_model = get_model(config['model'])
@@ -103,14 +105,19 @@ def run_experiment_suite(config_path="config.yaml"):
         prec  = precision_score(y_test, preds, average='weighted', zero_division=0)
         rec   = recall_score(y_test, preds, average='weighted', zero_division=0)
 
+        method_end_time = time.time()
+        duration_sec = method_end_time - method_start_time
+        
         logger.info(f"Accuracy     : {acc:.4f}")
         logger.info(f"Balanced Acc : {bal_acc:.4f}")
         logger.info(f"F1 (weighted): {f1w:.4f}")
         logger.info(f"Precision    : {prec:.4f}")
         logger.info(f"Recall       : {rec:.4f}")
+        logger.info(f"Time (sec)   : {duration_sec:.2f}")
 
         results.append({
             'method':               method,
+            'duration_sec':         duration_sec,
             'accuracy':             acc,
             'balanced_accuracy':    bal_acc,
             'f1_weighted':          f1w,

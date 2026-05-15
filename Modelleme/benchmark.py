@@ -78,7 +78,7 @@ def main():
             results_df = pd.read_json("reports/experiment_results.json")
             print("\n📈 QUICK PERFORMANCE SUMMARY:")
             print("-" * 80)
-            cols_to_print = ['method', 'accuracy', 'balanced_accuracy', 'f1_weighted', 'precision_weighted', 'recall_weighted']
+            cols_to_print = ['method', 'duration_sec', 'accuracy', 'balanced_accuracy', 'f1_weighted', 'precision_weighted', 'recall_weighted']
             # Only print columns that actually exist to avoid KeyError if an old file is read
             cols_to_print = [c for c in cols_to_print if c in results_df.columns]
             print(results_df[cols_to_print].to_string(index=False))
